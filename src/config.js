@@ -45,11 +45,12 @@ export const FIGHTER = {
   LANDING_RECOVERY: 3,   // Frames Erholung nach der Landung
   FRICTION: 0.5,         // Bremsen beim Zurückrutschen nach Treffern (px/F pro Frame)
 
-  // Schiebeboxen: Kämpfer können nicht ineinander laufen
+  // Schiebeboxen: Kämpfer können nicht ineinander laufen.
+  // Sie sind niedriger als der Körper, damit man über den Gegner springen kann.
   PUSHBOX: {
-    stand: { w: 56, h: 160 },
-    crouch: { w: 64, h: 110 },
-    air: { w: 50, h: 120 },
+    stand: { y: 0, w: 56, h: 110 },
+    crouch: { y: 0, w: 64, h: 80 },
+    air: { y: 30, w: 50, h: 90 },
   },
 
   // Verwundbare Bereiche je Haltung

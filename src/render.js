@@ -2,7 +2,7 @@
 // render.js – zeichnet den Spielzustand (einfache Version, Phase 1)
 // =====================================================================
 
-import { SUB, hurtboxesOf, pushboxWorld } from './sim.js';
+import { SUB, hurtboxesOf, pushboxWorld, hitboxOf, projectileBox } from './sim.js';
 import { FIGHTER, LOOK } from './config.js';
 
 export const VIEW_W = 960;
@@ -38,6 +38,12 @@ export class Renderer {
 
     if (!state) return;
     state.fighters.forEach((f, i) => this.drawFighter(f, i));
+    for (const p of state.projectiles) {
+      ctx.fillStyle = p.owner === 0 ? '#5fb4ff' : '#ff9a3c';
+      ctx.beginPath();
+      ctx.arc(p.x / SUB, FLOOR_Y - (p.y + p.h / 2) / SUB, 18, 0, Math.PI * 2);
+      ctx.fill();
+    }
     if (this.showBoxes) this.drawBoxes(state);
     if (view.hud) this.drawHud(state);
   }
@@ -60,6 +66,11 @@ export class Renderer {
     ctx.fill();
     ctx.fillStyle = look.band;
     ctx.fillRect(x - 17 + f.facing * 6, y - h + 6, 34, 6);
+    const hb = hitboxOf(f);
+    if (hb) {
+      ctx.fillStyle = look.skin;
+      ctx.fillRect(Math.min(x, hb.l / SUB), FLOOR_Y - hb.t / SUB, Math.abs((f.facing > 0 ? hb.r : hb.l) / SUB - x), (hb.t - hb.b) / SUB);
+    }
   }
 
   drawBoxes(state) {
@@ -70,7 +81,11 @@ export class Renderer {
       this.strokeWorldBox(pushboxWorld(f));
       ctx.strokeStyle = 'rgba(60,255,120,0.95)';
       for (const b of hurtboxesOf(f)) this.strokeWorldBox(b);
+      const hb = hitboxOf(f);
+      ctx.strokeStyle = 'rgba(255,40,60,1)';
+      if (hb) this.strokeWorldBox(hb);
     }
+    for (const p of state.projectiles) this.strokeWorldBox(projectileBox(p));
   }
 
   strokeWorldBox(b) {
