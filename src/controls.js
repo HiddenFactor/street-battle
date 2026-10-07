@@ -13,6 +13,7 @@ const SPECIAL_LABELS = {
   Minus: 'ß', Semicolon: 'Ö', Quote: 'Ä', BracketLeft: 'Ü',
   Space: 'Leertaste', Enter: 'Enter', Escape: 'Esc', ShiftLeft: 'Shift', ShiftRight: 'Shift',
   ControlLeft: 'Strg', ControlRight: 'Strg',
+  MouseLeft: 'Linksklick', MouseRight: 'Rechtsklick', MouseMiddle: 'Mausrad-Klick',
 };
 
 const PAD_LABELS = { 0: 'A', 1: 'B', 2: 'X', 3: 'Y', 4: 'LB', 5: 'RB', 6: 'LT', 7: 'RT', 9: 'Start' };
@@ -29,6 +30,14 @@ export function keyLabel(code) {
 // Erste Taste einer Aktion (die anderen sind Ersatztasten)
 const first = (map, action) => keyLabel(map[action][0]);
 const moveKeys = (map) => [first(map, 'up'), first(map, 'left'), first(map, 'down'), first(map, 'right')].join(' ');
+
+/** Kurze Zeile fürs Hauptmenü (PC) */
+export function menuHint() {
+  const p1 = KEYS.P1;
+  const p2 = KEYS.P2;
+  return `Steuerung: ${moveKeys(p1)} · ${first(p1, 'light')} schnell · ${first(p1, 'heavy')} stark · ` +
+    `${first(p1, 'special')} Energieball   (Spieler 2: ${moveKeys(p2)} + ${first(p2, 'light')}/${first(p2, 'heavy')}/${first(p2, 'special')})`;
+}
 
 /**
  * Textzeilen für die Anzeige unten im Bild.

@@ -20,7 +20,7 @@
 // Spielwerte. Das Spiel prüft das beim Verbinden.
 // =====================================================================
 
-export const GAME_VERSION = '1.0.0';
+export const GAME_VERSION = '1.1.0';
 
 // ---------------------------------------------------------------------
 // Arena
@@ -42,6 +42,8 @@ export const FIGHTER = {
   JUMP_VELOCITY: 15,     // Sprungkraft nach oben (px/F)
   JUMP_FORWARD: 4.2,     // Seitwärts-Tempo beim Vor-/Rückwärtssprung (px/F)
   GRAVITY: 0.75,         // Schwerkraft (px/F pro Frame)
+  AIR_CONTROL: 0.7,      // Lenken in der Luft mit links/rechts (px/F pro Frame, 0 = aus)
+  AIR_MAX_SPEED: 4.8,    // höchstes Seitwärts-Tempo in der Luft (px/F)
   LANDING_RECOVERY: 3,   // Frames Erholung nach der Landung
   FRICTION: 0.5,         // Bremsen beim Zurückrutschen nach Treffern (px/F pro Frame)
 
@@ -211,7 +213,8 @@ export const NET = {
 export const KEYS = {
   P1: {
     up: ['KeyW'], down: ['KeyS'], left: ['KeyA'], right: ['KeyD'],
-    light: ['KeyF'], heavy: ['KeyG'], special: ['KeyH'],
+    // Maus: Linksklick = schnell, Rechtsklick = stark; F/G/H gehen zusätzlich
+    light: ['MouseLeft', 'KeyF'], heavy: ['MouseRight', 'KeyG'], special: ['Space', 'KeyH'],
   },
   P2: {
     up: ['ArrowUp'], down: ['ArrowDown'], left: ['ArrowLeft'], right: ['ArrowRight'],

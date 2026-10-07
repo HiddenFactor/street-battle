@@ -9,13 +9,13 @@
 import { Renderer, VIEW_W, VIEW_H } from './render.js';
 import { UI } from './ui.js';
 import { Sound } from './audio.js';
-import { attachKeyboard, onKeyPress, TouchInput, GamepadInput } from './input.js';
+import { attachKeyboard, onKeyPress, clearInputLatch, TouchInput, GamepadInput } from './input.js';
 import { LocalSession, TrainingSession, DemoSession } from './sessions.js';
 import { OnlineLobby } from './online.js';
 import { TouchControls, prefersTouch } from './touch.js';
 import { ERRORS } from './net.js';
-import { KEYS, LOOK } from './config.js';
-import { controlsLines } from './controls.js';
+import { KEYS, LOOK, GAME_VERSION } from './config.js';
+import { controlsLines, menuHint } from './controls.js';
 
 const STEP_MS = 1000 / 60;
 const MAX_STEPS_PER_FRAME = 5;
@@ -70,6 +70,7 @@ for (const type of ['pointerdown', 'keydown', 'touchstart']) {
 // ---------------------------------------------------------------------
 function startSession(next) {
   if (session) session.dispose();
+  clearInputLatch();
   session = next;
   paused = false;
   acc = 0;
@@ -103,6 +104,7 @@ function pause() {
 
 function resume() {
   paused = false;
+  clearInputLatch(); // Tasten, die während der Pause gedrückt wurden, nicht nachträglich auslösen
   last = performance.now();
   ui.hide();
   updateChrome();
@@ -212,6 +214,8 @@ $('btn-mute').addEventListener('click', () => {
   ui.toast(sound.muted ? 'Ton aus' : 'Ton an', 1200);
 });
 $('btn-fullscreen').addEventListener('click', toggleFullscreen);
+// Nach einem Klick den Fokus abgeben – sonst würde die Leertaste (Energieball) den Knopf erneut drücken
+$('top-buttons').addEventListener('click', () => document.activeElement && document.activeElement.blur());
 
 function toggleFullscreen() {
   const doc = document;
@@ -312,7 +316,9 @@ function frame(now) {
     acc += dt;
     let steps = 0;
     while (acc >= STEP_MS && steps < MAX_STEPS_PER_FRAME) {
-      if (!session.tick()) {
+      const advanced = session.tick();
+      clearInputLatch(); // kurze Tipper wurden jetzt gelesen
+      if (!advanced) {
         // Online: Eingabe des Gegners fehlt noch → warten statt raten
         acc = Math.min(acc, STEP_MS);
         break;
@@ -414,7 +420,15 @@ window.streetBattle = {
 };
 
 // Hinweise je nach Gerät
-ui.setText('title-hint', prefersTouch() ? 'Tipp: Am Handy am besten „Online“ oder „Training“ spielen.' : 'Gamepads werden automatisch erkannt.');
+ui.setText('title-hint', prefersTouch() ? 'Tipp: Am Handy am besten „Online“ oder „Training“ spielen.' : menuHint());
+ui.setText('version', 'v' + GAME_VERSION);
+
+// Service Worker: lädt Spieldateien immer frisch vom Server (sonst bis zu 10 Min. alte Version)
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {
+    /* z. B. auf itch.io oder ohne https – dann eben ohne */
+  });
+}
 $('btn-fullscreen').hidden = !(document.fullscreenEnabled || document.webkitFullscreenEnabled);
 
 ui.show('title');

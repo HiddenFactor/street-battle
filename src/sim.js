@@ -44,6 +44,8 @@ const K = {
   jumpV: px(FIGHTER.JUMP_VELOCITY),
   jumpX: px(FIGHTER.JUMP_FORWARD),
   gravity: px(FIGHTER.GRAVITY),
+  airAccel: px(FIGHTER.AIR_CONTROL || 0),
+  airMax: px(FIGHTER.AIR_MAX_SPEED || 0),
   friction: px(FIGHTER.FRICTION),
   launchV: px(COMBAT.LAUNCH_VELOCITY),
   launchX: px(COMBAT.LAUNCH_PUSH),
@@ -382,6 +384,14 @@ function think(s, i, input) {
 
   // Im Blockstun kann man zwischen stehend und geduckt wechseln
   if (f.state === 'blockstun') f.crouching = d.down;
+
+  // In der Luft lenken (nur im normalen Sprung und beim Sprung-Angriff)
+  const steering = f.state === 'air' || (f.state === 'attack' && M[f.move].air);
+  if (steering && K.airAccel > 0 && d.h !== 0) {
+    f.vx += d.h * K.airAccel;
+    if (f.vx > K.airMax) f.vx = K.airMax;
+    if (f.vx < -K.airMax) f.vx = -K.airMax;
+  }
 
   // Sprung-Angriff
   if (f.state === 'air' && !f.airAttackUsed && (f.bufferBtn === LIGHT || f.bufferBtn === HEAVY)) {

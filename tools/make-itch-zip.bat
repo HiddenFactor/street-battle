@@ -16,12 +16,12 @@ if exist streetbattle-itch.zip del streetbattle-itch.zip
 rem Das in Windows 10/11 eingebaute "tar" erzeugt saubere ZIP-Dateien
 set "WINTAR=%SystemRoot%\System32\tar.exe"
 if not exist "%WINTAR%" goto powershell
-"%WINTAR%" -a -c -f streetbattle-itch.zip index.html style.css manifest.webmanifest icon.svg src
+"%WINTAR%" -a -c -f streetbattle-itch.zip index.html style.css manifest.webmanifest icon.svg sw.js src
 if errorlevel 1 goto powershell
 goto done
 
 :powershell
-powershell -NoProfile -Command "Compress-Archive -Path index.html,style.css,manifest.webmanifest,icon.svg,src -DestinationPath streetbattle-itch.zip -Force"
+powershell -NoProfile -Command "Compress-Archive -Path index.html,style.css,manifest.webmanifest,icon.svg,sw.js,src -DestinationPath streetbattle-itch.zip -Force"
 if errorlevel 1 (
   echo Die ZIP-Datei konnte nicht erstellt werden.
   pause

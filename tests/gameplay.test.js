@@ -235,3 +235,23 @@ test('Kämpfer können nicht durcheinander laufen', () => {
   assert.ok(dist >= FIGHTER.PUSHBOX.stand.w - 1, `zu nah: ${dist}`);
   assert.ok(s.fighters[0].x < s.fighters[1].x);
 });
+
+test('Luftsteuerung: in der Luft rechts halten lenkt nach rechts, nie schneller als erlaubt', () => {
+  const s0 = place(fightState(), 300, 800);
+  const landingX = (events) => events.find((e) => e.type === 'land' && e.p === 0).x;
+  // Senkrechter Sprung ohne Lenken
+  const plain = run(s0, 60, (t) => [t < 2 ? UP : 0, 0]);
+  // Senkrechter Sprung, in der Luft rechts halten (erst nach dem Absprung)
+  let maxSpeed = 0;
+  const steered = run(s0, 60, (t, s) => {
+    maxSpeed = Math.max(maxSpeed, Math.abs(s.fighters[0].vx));
+    return [t < 2 ? UP : t > FIGHTER.JUMP_SQUAT + 1 ? RIGHT : 0, 0];
+  });
+  assert.equal(landingX(plain.events), 300, 'ohne Lenken landet der senkrechte Sprung am Absprungort');
+  if (FIGHTER.AIR_CONTROL > 0) {
+    assert.ok(landingX(steered.events) > 350, `Lenken wirkt nicht (Landung bei ${landingX(steered.events)})`);
+    assert.ok(maxSpeed <= Math.round(FIGHTER.AIR_MAX_SPEED * SUB), `zu schnell: ${maxSpeed}`);
+  } else {
+    assert.equal(landingX(steered.events), 300);
+  }
+});

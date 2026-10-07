@@ -17,13 +17,15 @@ Online-Verbindung.
 |                         | Spieler 1 | Spieler 2                 | Gamepad              | Handy                 |
 |-------------------------|-----------|---------------------------|----------------------|-----------------------|
 | Laufen/Springen/Ducken  | W A S D   | Pfeiltasten               | Steuerkreuz / Stick  | Steuerkreuz links     |
-| Schneller Angriff       | F         | Nummernblock 1 (oder `,`) | X / □                | **L**                 |
-| Starker Angriff         | G         | Nummernblock 2 (oder `.`) | Y / △                | **S**                 |
-| Special (Energieball)   | H         | Nummernblock 3 (oder `-`) | B / ○                | **★**                 |
+| Schneller Angriff       | **Linksklick** (oder F) | Nummernblock 1 (oder `,`) | X / □  | **L**                 |
+| Starker Angriff (Kick)  | **Rechtsklick** (oder G) | Nummernblock 2 (oder `.`) | Y / △ | **S**                 |
+| Special (Energieball)   | **Leertaste** (oder H) | Nummernblock 3 (oder `-`) | B / ○   | **★**                 |
 | Pause                   | Esc oder P| Esc oder P                | Start                | ❚❚ oben in der Mitte  |
 
 - **Blocken:** vom Gegner weg halten. Geduckt blocken gegen tiefe Tritte, stehend gegen Sprung-Angriffe.
 - **Unten + Angriff** = tiefer Angriff (der starke tiefe Tritt wirft um). **In der Luft angreifen** = Sprung-Angriff.
+- **In der Luft lenken:** Während eines Sprungs mit links/rechts die Flugbahn ändern.
+- Die Tastenbelegung steht klein unten im Bild und im Hauptmenü. Unten links im Menü steht die Version (z. B. v1.1.0).
 - Der schnelle Schlag lässt sich bei Kontakt direkt in den Energieball abbrechen (Combo!).
 - **Training:** `T` wechselt den Dummy (stehen, ducken, blocken, springen), `F1` zeigt die Hitboxen.
   Oben links siehst du Schaden und „Frame-Vorteil“ deines letzten Treffers.
@@ -116,6 +118,8 @@ git commit -m "Balancing angepasst"
 git push
 ```
 Nach etwa 1 Minute ist die neue Version online. Danach laden beide Spieler die Seite neu (F5).
+Ob die neue Version da ist, siehst du unten links im Hauptmenü (Versionsnummer `GAME_VERSION` in `config.js`
+bei jedem Update erhöhen). Falls nicht: einmal **Strg+F5** drücken.
 
 So würdest du es bei einem neuen Projekt selbst einrichten:
 1. Konto anlegen auf <https://github.com> (kostenlos).
@@ -172,6 +176,8 @@ Alle Spielwerte stehen in **`src/config.js`** – mit Kommentaren. Datei mit ein
 | `FIGHTER.WALK_FORWARD` / `WALK_BACK` | 3.4 / 2.6         | Lauftempo (Pixel pro Frame) |
 | `FIGHTER.JUMP_VELOCITY`   | 15                            | Sprungkraft (höher = höher springen) |
 | `FIGHTER.GRAVITY`         | 0.75                          | Schwerkraft (höher = kürzere Sprünge) |
+| `FIGHTER.AIR_CONTROL`     | 0.7                           | Lenken in der Luft (0 = aus, 0.3 = leicht, 0.7 = stark) |
+| `FIGHTER.AIR_MAX_SPEED`   | 4.8                           | höchstes Seitwärts-Tempo in der Luft |
 | `MOVES.lightStand` usw.   | `damage`                      | Schaden des Angriffs |
 |                           | `startup`                     | Frames bis der Angriff trifft (kleiner = schneller) |
 |                           | `active`                      | wie lange der Angriff treffen kann |

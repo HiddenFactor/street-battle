@@ -49,6 +49,10 @@ Bezeichner auf Englisch, Kommentare knapp und erklärend.
   Richtungen sind absolut; die sim rechnet vor/zurück über `facing` (links+rechts = nichts).
 - Quellen mit `read() → Maske`: `KeyboardInput`, `GamepadInput`, `TouchInput` (Maske setzt
   touch.js), `NetworkInput` (Frame → Maske), `DummyInput`, `BotInput`; `combine()` verodert.
+- Maustasten sind Pseudo-Codes `MouseLeft`/`MouseRight` im selben Tasten-Set (in `KEYS` nutzbar);
+  Klicks auf Knöpfe/offene Menüs und Touch-Kompatibilitäts-Mausereignisse zählen nicht.
+- Kurze Tipper werden gemerkt („latch“) und nach jedem `session.tick()` mit `clearInputLatch()` gelöscht.
+- Anzeige der Tastenbelegung: `src/controls.js` (aus `KEYS`/`GAMEPAD`), Schalter `LOOK.SHOW_CONTROLS`.
 
 ### Online (src/lockstep.js, src/net.js, src/online.js)
 - Delay-based Lockstep: lokale Eingabe für Frame `f + delay` einplanen, Frame `f` nur simulieren,
@@ -89,6 +93,12 @@ Bezeichner auf Englisch, Kommentare knapp und erklärend.
 - `src/touch.js` – Touch-Steuerung · `src/lockstep.js`, `src/net.js`, `src/online.js` – Online
 - `tests/` – Node-Tests (`node:test`), `tests/online-test.html` – zwei Instanzen mit Bots über echtes PeerJS
 - `tools/serve.js` – Mini-Webserver ohne Abhängigkeiten
+- `sw.js` – Service Worker: eigene Dateien immer mit `cache: 'no-cache'` laden (GitHub Pages cacht sonst 10 Min.)
+
+## Veröffentlichung
+- Live: https://hiddenfactor.github.io/street-battle/ (GitHub Pages, Branch `main`, Ordner `/`).
+- Repo-lokale Git-Identität ist anonym (`HiddenFactor`, noreply-Adresse) – nicht ändern, keine persönlichen Daten committen.
+- Bei jedem Release `GAME_VERSION` erhöhen (wird im Menü angezeigt und online verglichen).
 
 ## Konventionen
 - Keine npm-Abhängigkeiten. package.json nur für `"type": "module"` und Skripte.

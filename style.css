@@ -143,6 +143,15 @@ button[disabled] { filter: grayscale(1) brightness(0.7); cursor: default; }
 .status { min-height: 1.3em; color: var(--accent); font-family: system-ui, sans-serif; font-weight: 700; max-width: 40em; }
 .status.error { color: #ff7a8a; }
 .score { font-size: 1.4em; color: var(--muted); }
+.version {
+  position: absolute;
+  left: 1.2em;
+  bottom: 0.9em;
+  font: 600 0.7em system-ui, sans-serif;
+  color: var(--muted);
+  opacity: 0.7;
+  margin: 0;
+}
 .message-text { font-family: system-ui, sans-serif; font-weight: 600; max-width: 34em; line-height: 1.4; white-space: pre-line; }
 
 /* Online-Lobby */

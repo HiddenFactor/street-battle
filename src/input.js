@@ -17,6 +17,9 @@ const BIT_OF = { up: UP, down: DOWN, left: LEFT, right: RIGHT, light: LIGHT, hea
 // Tastatur
 // ---------------------------------------------------------------------
 const keysDown = new Set();
+// Kurze Tipper (gedrückt und losgelassen zwischen zwei Spiel-Frames) gehen sonst verloren.
+// Deshalb zählt jeder Druck mindestens bis zum nächsten Spiel-Frame (siehe clearInputLatch).
+const latched = new Set();
 const keyListeners = [];
 let keyboardAttached = false;
 
@@ -38,10 +41,49 @@ export function attachKeyboard() {
     if (GAME_CODES.has(e.code)) e.preventDefault();
     if (!e.repeat) for (const fn of keyListeners) fn(e.code);
     keysDown.add(e.code);
+    latched.add(e.code);
   });
   window.addEventListener('keyup', (e) => keysDown.delete(e.code));
   // Fenster verliert den Fokus → alle Tasten loslassen (sonst "klemmen" sie)
-  window.addEventListener('blur', () => keysDown.clear());
+  window.addEventListener('blur', () => {
+    keysDown.clear();
+    latched.clear();
+  });
+  attachMouse();
+}
+
+/** Nach jedem Spiel-Frame aufrufen: gemerkte kurze Tipper vergessen. */
+export function clearInputLatch() {
+  latched.clear();
+}
+
+// ---------------------------------------------------------------------
+// Maus: Linksklick/Rechtsklick werden wie Tasten behandelt
+// ("MouseLeft"/"MouseRight" können in KEYS in config.js stehen)
+// ---------------------------------------------------------------------
+const MOUSE_CODES = { 0: 'MouseLeft', 1: 'MouseMiddle', 2: 'MouseRight' };
+let lastTouch = -Infinity;
+
+function attachMouse() {
+  // Handys erzeugen nach einem Fingertipp zusätzlich "Maus"-Ereignisse – die zählen nicht
+  window.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'mouse') lastTouch = performance.now();
+  }, { capture: true });
+  window.addEventListener('mousedown', (e) => {
+    if (performance.now() - lastTouch < 1000) return;
+    // Klicks auf Knöpfe, Eingabefelder und offene Menüs sind keine Angriffe
+    const t = e.target;
+    if (t && t.closest && t.closest('button, input, a, .screen.visible, #touch')) return;
+    const code = MOUSE_CODES[e.button];
+    if (!code) return;
+    e.preventDefault();
+    keysDown.add(code);
+    latched.add(code);
+  });
+  window.addEventListener('mouseup', (e) => {
+    const code = MOUSE_CODES[e.button];
+    if (code) keysDown.delete(code);
+  });
 }
 
 /** Wird bei jedem neuen Tastendruck aufgerufen (für Menü, Pause, F1 ...). */
@@ -61,7 +103,7 @@ export class KeyboardInput {
   read() {
     let mask = 0;
     for (const [name, codes] of Object.entries(this.map)) {
-      if (codes.some((c) => keysDown.has(c))) mask |= BIT_OF[name];
+      if (codes.some((c) => keysDown.has(c) || latched.has(c))) mask |= BIT_OF[name];
     }
     return mask;
   }
