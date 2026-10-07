@@ -8,6 +8,7 @@
 
 import { Renderer, VIEW_W, VIEW_H } from './render.js';
 import { UI } from './ui.js';
+import { Sound } from './audio.js';
 import { attachKeyboard, onKeyPress, TouchInput, GamepadInput } from './input.js';
 import { LocalSession, TrainingSession, DemoSession } from './sessions.js';
 import { KEYS, LOOK } from './config.js';
@@ -15,18 +16,23 @@ import { KEYS, LOOK } from './config.js';
 const STEP_MS = 1000 / 60;
 const MAX_STEPS_PER_FRAME = 5;
 const params = new URLSearchParams(location.search);
+// ?test: für automatische Tests – kein Auto-Pause, auch im versteckten Tab zeichnen
+const TEST_MODE = params.has('test');
 
 const stage = document.getElementById('stage');
 const canvas = document.getElementById('game');
 const renderer = new Renderer(canvas);
 const ui = new UI();
+const sound = new Sound();
 const touchInput = new TouchInput();
 const pads = [new GamepadInput(0), new GamepadInput(1)];
+const $ = (id) => document.getElementById(id);
 
 let session = new DemoSession();
 let paused = false;
 let acc = 0;
 let last = performance.now();
+let lastSecond = -1;
 
 renderer.showBoxes = params.has('debug');
 
@@ -48,6 +54,11 @@ window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', () => setTimeout(resize, 200));
 resize();
 
+// Ton erst nach der ersten Nutzeraktion möglich (Browser-Regel)
+for (const type of ['pointerdown', 'keydown', 'touchstart']) {
+  window.addEventListener(type, () => sound.unlock(), { capture: true });
+}
+
 // ---------------------------------------------------------------------
 // Modi starten / beenden
 // ---------------------------------------------------------------------
@@ -56,29 +67,33 @@ function startSession(next) {
   session = next;
   paused = false;
   acc = 0;
+  lastSecond = -1;
   ui.hide();
-  updateTopButtons();
+  updateChrome();
 }
 
 function goToMenu() {
   startSession(new DemoSession());
   ui.show('title');
+  updateChrome();
 }
 
 function pause() {
   if (!session.canPause || paused || ui.isOpen()) return;
   paused = true;
   const training = session.kind === 'training';
-  document.getElementById('btn-dummy').hidden = !training;
-  document.getElementById('btn-hitboxes').hidden = !training;
+  $('btn-dummy').hidden = !training;
+  $('btn-hitboxes').hidden = !training;
   if (training) updateTrainingButtons();
   ui.show('pause');
+  updateChrome();
 }
 
 function resume() {
   paused = false;
   last = performance.now();
   ui.hide();
+  updateChrome();
 }
 
 function showMatchEnd(winner) {
@@ -87,12 +102,16 @@ function showMatchEnd(winner) {
   ui.setText('end-title', winner < 0 ? 'UNENTSCHIEDEN!' : `${names[winner]} GEWINNT!`);
   ui.setText('end-score', `${s.wins[0]} : ${s.wins[1]}`);
   ui.setStatus('end-status', '');
-  document.getElementById('btn-rematch').disabled = false;
+  $('btn-rematch').disabled = false;
   ui.show('end');
+  updateChrome();
 }
 
-function updateTopButtons() {
-  document.getElementById('btn-pause').hidden = !session.canPause;
+// Knöpfe oben: im Menü in die Ecke, im Spiel unter den Timer
+function updateChrome() {
+  $('btn-pause').hidden = !session.canPause || session.kind === 'demo';
+  document.body.classList.toggle('in-menu', session.kind === 'demo');
+  $('btn-mute').textContent = sound.muted ? '🔇' : '🔊';
 }
 
 function updateTrainingButtons() {
@@ -113,6 +132,7 @@ function nextDummyMode() {
   updateTrainingButtons();
 }
 
+ui.onClick = () => sound.play('menu');
 ui.on('local', () => startSession(new LocalSession(touchInput)));
 ui.on('training', () => {
   startSession(new TrainingSession(touchInput));
@@ -128,10 +148,17 @@ ui.on('hitboxes', toggleHitboxes);
 ui.on('rematch', () => {
   session.rematch();
   ui.hide();
+  updateChrome();
 });
 
-document.getElementById('btn-pause').addEventListener('click', () => (paused ? resume() : pause()));
-document.getElementById('btn-fullscreen').addEventListener('click', toggleFullscreen);
+$('btn-pause').addEventListener('click', () => (paused ? resume() : pause()));
+$('btn-mute').addEventListener('click', () => {
+  sound.unlock();
+  sound.toggleMute();
+  updateChrome();
+  ui.toast(sound.muted ? 'Ton aus' : 'Ton an', 1200);
+});
+$('btn-fullscreen').addEventListener('click', toggleFullscreen);
 
 function toggleFullscreen() {
   const doc = document;
@@ -142,7 +169,7 @@ function toggleFullscreen() {
   }
   const request = el.requestFullscreen || el.webkitRequestFullscreen;
   if (!request) {
-    ui.toast('Vollbild wird hier nicht unterstützt. Tipp: „Zum Home-Bildschirm hinzufügen“.', 3500);
+    ui.toast('Vollbild geht hier nicht. Tipp: „Zum Home-Bildschirm hinzufügen“.', 3500);
     return;
   }
   Promise.resolve(request.call(el))
@@ -182,10 +209,11 @@ function pollPadPause() {
 // Tab im Hintergrund → lokales Spiel pausieren
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
-    if (session.kind === 'local' || session.kind === 'training') pause();
+    if ((session.kind === 'local' || session.kind === 'training') && !TEST_MODE) pause();
   } else {
     last = performance.now();
   }
+  schedule();
 });
 
 // ---------------------------------------------------------------------
@@ -194,9 +222,15 @@ document.addEventListener('visibilitychange', () => {
 function handleEvents() {
   const quiet = session.kind === 'demo';
   for (const e of session.takeEvents()) {
-    renderer.onEvent(e, quiet);
+    renderer.onEvent(e);
+    if (!quiet) sound.onEvent(e);
     if (e.type === 'matchEnd' && !quiet) showMatchEnd(e.winner);
   }
+  // Countdown-Piepen in den letzten 10 Sekunden
+  const s = session.state;
+  const sec = Math.ceil(s.timer / 60);
+  if (!quiet && !s.training && s.phase === 'fight' && sec !== lastSecond && sec <= 10 && sec > 0) sound.play('tick');
+  lastSecond = sec;
 }
 
 function frame(now) {
@@ -208,7 +242,7 @@ function frame(now) {
   ui.pollGamepads();
   pollPadPause();
 
-  if (!paused) {
+  if (!paused && !window.streetBattle.freeze) {
     acc += dt;
     let steps = 0;
     while (acc >= STEP_MS && steps < MAX_STEPS_PER_FRAME) {
@@ -224,15 +258,82 @@ function frame(now) {
   }
 
   handleEvents();
-  renderer.draw(session.state, {
-    hud: session.kind !== 'demo',
-    kind: session.kind,
-    localPlayer: session.localPlayer,
-    dt,
-    paused,
-  });
-  requestAnimationFrame(frame);
+  runWaiters();
+  if (!document.hidden || TEST_MODE) {
+    renderer.draw(session.state, {
+      hud: session.kind !== 'demo',
+      kind: session.kind,
+      localPlayer: session.localPlayer,
+      dummyLabel: session.kind === 'training' ? session.dummy.mode.label : null,
+      net: session.netInfo ? session.netInfo() : null,
+      waiting: session.waitingText ? session.waitingText() : null,
+      dt,
+    });
+  }
+  schedule();
 }
 
+// Normalerweise requestAnimationFrame. Ist der Tab versteckt, pausiert der
+// Browser das – dann läuft die Logik per Timer weiter (wichtig online).
+let loopId = 0;
+const testChannel = new MessageChannel();
+function schedule() {
+  const id = ++loopId;
+  const run = (now) => {
+    if (id === loopId) frame(now);
+  };
+  if (TEST_MODE) {
+    testTick(run, performance.now());
+    return;
+  }
+  if (!document.hidden) requestAnimationFrame(run);
+  // Sicherheitsnetz: falls der Browser requestAnimationFrame anhält
+  // (Tab versteckt, Fenster verdeckt), läuft das Spiel per Timer weiter.
+  setTimeout(() => run(performance.now()), document.hidden ? STEP_MS : 100);
+}
+
+// Nur für automatische Tests: Nachrichten werden im versteckten Tab nicht
+// gedrosselt (Timer schon). Ruft frame() etwa 60-mal pro Sekunde auf.
+function testTick(run, since) {
+  testChannel.port1.onmessage = () => {
+    const now = performance.now();
+    if (now - since >= STEP_MS - 1) run(now);
+    else testTick(run, since);
+  };
+  testChannel.port2.postMessage(0);
+}
+
+// Für Tests: Promise, die nach n Bildern erfüllt wird (Timer werden in
+// versteckten Tabs stark gedrosselt, die Spielschleife im Test-Modus nicht)
+const waiters = [];
+function runWaiters() {
+  for (let i = waiters.length - 1; i >= 0; i--) {
+    if (--waiters[i].n <= 0) {
+      waiters[i].resolve();
+      waiters.splice(i, 1);
+    }
+  }
+}
+
+// Für Tests und Neugierige: in der Browser-Konsole "streetBattle.session.state" eingeben
+window.streetBattle = {
+  get session() {
+    return session;
+  },
+  renderer,
+  ui,
+  sound,
+  freeze: false, // true = Spiel anhalten, ohne das Pause-Menü (für Tests/Screenshots)
+  frames: (n) => new Promise((resolve) => waiters.push({ n, resolve })),
+  async until(cond, maxFrames = 1200) {
+    for (let i = 0; i < maxFrames && !cond(); i++) await this.frames(1);
+    return cond();
+  },
+  key(code, down) {
+    window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code }));
+  },
+};
+
 ui.show('title');
-requestAnimationFrame(frame);
+updateChrome();
+schedule();

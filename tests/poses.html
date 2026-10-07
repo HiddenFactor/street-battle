@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Street Battle – Posen-Vorschau</title>
+  <style>
+    body { margin: 0; background: #111; color: #ddd; font: 14px system-ui, sans-serif; }
+    p { margin: 8px 12px; }
+    canvas { display: block; width: 100%; max-width: 1440px; }
+  </style>
+</head>
+<body>
+  <p>Alle Posen der Figur mit Hitboxen (rot) und Hurtboxen (grün). Nur zum Entwickeln – öffne diese Seite über den lokalen Server.</p>
+  <canvas id="c" width="960" height="540"></canvas>
+  <script type="module">
+    import { Renderer, FLOOR_Y } from '../src/render.js';
+    import { SUB } from '../src/sim.js';
+    import { MOVES } from '../src/config.js';
+
+    const canvas = document.getElementById('c');
+    const r = new Renderer(canvas);
+    r.resize(960, 540, 1.5);
+    const ctx = r.ctx;
+
+    const base = { x: 0, y: 0, vx: 0, vy: 0, facing: 1, hp: 100, state: 'idle', stateFrame: 0, move: null, moveFrame: 0, hasHit: false,
+      stun: 0, cooldown: 0, crouching: false, guarding: false, jumpDir: 0, invuln: 0, airAttackUsed: false, combo: 0 };
+    const atk = (move, extra = {}) => ({ state: 'attack', move, moveFrame: MOVES[move].startup, crouching: !!MOVES[move].crouch, ...extra });
+    const cells = [
+      ['idle', {}],
+      ['walk', { state: 'walk', stateFrame: 9, vx: 300 }],
+      ['crouch', { state: 'crouch', crouching: true }],
+      ['jumpsquat', { state: 'jumpsquat' }],
+      ['air hoch', { state: 'air', y: 9000, vy: 500 }],
+      ['air runter', { state: 'air', y: 9000, vy: -500 }],
+      ['Salto', { state: 'air', y: 9000, vy: 0, jumpDir: 1, stateFrame: 14 }],
+      ['lightStand', atk('lightStand')],
+      ['heavyStand', atk('heavyStand')],
+      ['lightCrouch', atk('lightCrouch')],
+      ['heavyCrouch', atk('heavyCrouch')],
+      ['lightAir', atk('lightAir', { y: 9000 })],
+      ['heavyAir', atk('heavyAir', { y: 9000 })],
+      ['special', atk('special')],
+      ['hitstun', { state: 'hitstun', stun: 10 }],
+      ['block', { state: 'blockstun' }],
+      ['block geduckt', { state: 'blockstun', crouching: true }],
+      ['knockdown', { state: 'knockdown', y: 5000, vy: 300 }],
+      ['liegen', { state: 'knockdown', y: 0, vy: 0 }],
+      ['getup', { state: 'getup', stun: 12 }],
+      ['win', { state: 'win' }],
+    ];
+
+    function draw(time) {
+      r.time = time / 1000;
+      ctx.setTransform(r.scale, 0, 0, r.scale, 0, 0);
+      ctx.fillStyle = '#2a2036';
+      ctx.fillRect(0, 0, 960, 540);
+      cells.forEach(([label, props], k) => {
+        const col = k % 7;
+        const row = Math.floor(k / 7);
+        const cx = 70 + col * 137;
+        const floor = 168 + row * 178;
+        const f = { ...base, ...props };
+        const state = { hitstop: 0, phase: 'fight', fighters: [f, { ...base, x: 99999 }], projectiles: [] };
+        ctx.save();
+        ctx.translate(cx, floor);
+        ctx.scale(0.78, 0.78);
+        ctx.translate(0, -FLOOR_Y);
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.fillRect(-60, FLOOR_Y, 120, 1);
+        r.fx[0].pose = null;
+        r.fx[0].trail = [];
+        r.drawFighter(state, 0, 0.016);
+        r.drawBoxes({ fighters: [f], projectiles: [] });
+        ctx.restore();
+        ctx.fillStyle = '#ddd';
+        ctx.font = '12px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText(label, cx, floor + 14);
+      });
+      requestAnimationFrame(draw);
+    }
+    requestAnimationFrame(draw);
+    void SUB;
+  </script>
+</body>
+</html>

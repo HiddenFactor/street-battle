@@ -234,6 +234,14 @@ button[disabled] { filter: grayscale(1) brightness(0.7); cursor: default; }
   opacity: 0.75;
 }
 #top-buttons button:hover { opacity: 1; }
+/* Im Hauptmenü unten rechts, damit sie das Logo nicht verdecken */
+body.in-menu #top-buttons {
+  top: auto;
+  left: auto;
+  bottom: calc(12px * var(--u));
+  right: calc(12px * var(--u));
+  transform: none;
+}
 #top-buttons button[hidden] { display: none; }
 
 /* ---------------------------------------------------------------------
