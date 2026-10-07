@@ -469,6 +469,7 @@ export class Renderer {
     if (state && view.hud) {
       this.drawHud(state, view, dt);
       this.drawAnnouncements(state, view);
+      if (view.controlsHint) this.drawControlsHint(view.controlsHint);
     }
     if (view.waiting) this.drawWaiting(view.waiting);
     if (view.banner) this.drawBanner(view.banner);
@@ -1204,6 +1205,32 @@ export class Renderer {
     ctx.restore();
   }
 
+  // Tastenbelegung klein und halbtransparent ganz unten (LOOK.SHOW_CONTROLS)
+  drawControlsHint(lines) {
+    const ctx = this.ctx;
+    const y = VIEW_H - 11;
+    ctx.save();
+    ctx.font = '600 12px system-ui, "Segoe UI", sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = '#fff';
+    ctx.shadowColor = 'rgba(0,0,0,0.9)';
+    ctx.shadowBlur = 3;
+    if (lines.left) {
+      ctx.textAlign = 'left';
+      ctx.fillText(lines.left, 14, y);
+    }
+    if (lines.right) {
+      ctx.textAlign = 'right';
+      ctx.fillText(lines.right, VIEW_W - 14, y);
+    }
+    if (lines.center) {
+      ctx.textAlign = 'center';
+      ctx.fillText(lines.center, VIEW_W / 2, lines.left ? y - 16 : y);
+    }
+    ctx.restore();
+  }
+
   drawWaiting(text) {
     const ctx = this.ctx;
     ctx.fillStyle = 'rgba(5,3,12,0.55)';
@@ -1262,11 +1289,11 @@ export class Renderer {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.fillRect(VIEW_W - 330, 500, 320, 34);
+    ctx.fillRect(VIEW_W - 330, 92, 320, 34);
     ctx.fillStyle = '#7dff9b';
     const [a, b] = state.fighters;
     const desc = (f) => `${f.state}${f.move ? ':' + f.move + '@' + f.moveFrame : ''}`;
-    ctx.fillText(`Frame ${state.frame}  ${state.phase}  Hitstop ${state.hitstop}`, VIEW_W - 322, 510);
-    ctx.fillText(`P1 ${desc(a)}   P2 ${desc(b)}`, VIEW_W - 322, 525);
+    ctx.fillText(`Frame ${state.frame}  ${state.phase}  Hitstop ${state.hitstop}`, VIEW_W - 322, 102);
+    ctx.fillText(`P1 ${desc(a)}   P2 ${desc(b)}`, VIEW_W - 322, 117);
   }
 }

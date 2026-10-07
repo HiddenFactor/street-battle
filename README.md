@@ -190,6 +190,7 @@ Alle Spielwerte stehen in **`src/config.js`** – mit Kommentaren. Datei mit ein
 | `KEYS`                    |                               | Tastenbelegung |
 | `LOOK.PLAYERS`            |                               | Farben der Kämpfer (ändert nichts am Spielablauf) |
 | `LOOK.SCREEN_SHAKE` / `PARTICLES` | 1.0                   | Bildschirmwackeln und Partikelmenge (0 = aus) |
+| `LOOK.SHOW_CONTROLS`      | true                          | Tastenbelegung klein unten im Bild anzeigen (`false` = aus) |
 
 Beispiel: Der Energieball ist zu stark? Setze `cooldown: 180` (3 Sekunden) oder `damage: 7`.
 

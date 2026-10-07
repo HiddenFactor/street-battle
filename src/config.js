@@ -245,6 +245,7 @@ export const LOOK = {
   ],
   SCREEN_SHAKE: 1.0,     // 0 = aus, 1 = normal, 2 = doppelt
   PARTICLES: 1.0,        // Menge der Partikel (0 = aus)
+  SHOW_CONTROLS: true,   // Tastenbelegung klein unten im Bild anzeigen (false = aus)
 };
 
 // Nur diese Teile bestimmen den Spielablauf. Online müssen sie bei beiden

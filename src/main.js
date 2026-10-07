@@ -15,6 +15,7 @@ import { OnlineLobby } from './online.js';
 import { TouchControls, prefersTouch } from './touch.js';
 import { ERRORS } from './net.js';
 import { KEYS, LOOK } from './config.js';
+import { controlsLines } from './controls.js';
 
 const STEP_MS = 1000 / 60;
 const MAX_STEPS_PER_FRAME = 5;
@@ -333,10 +334,21 @@ function frame(now) {
       net: session.netInfo ? session.netInfo() : null,
       waiting: session.waitingText ? session.waitingText() : null,
       banner: banner && performance.now() < banner.until ? banner.text : null,
+      controlsHint: controlsHint(),
       dt,
     });
   }
   schedule();
+}
+
+// Tastenbelegung unten im Bild (nicht im Menü und nicht auf Touch-Geräten)
+let hintCache = { key: '', lines: null };
+function controlsHint() {
+  if (!LOOK.SHOW_CONTROLS || session.kind === 'demo' || touch.enabled) return null;
+  const pad = pads.some((p) => p.connected());
+  const key = session.kind + pad;
+  if (hintCache.key !== key) hintCache = { key, lines: controlsLines(session.kind, pad) };
+  return hintCache.lines;
 }
 
 // Normalerweise requestAnimationFrame. Ist der Tab versteckt, pausiert der
