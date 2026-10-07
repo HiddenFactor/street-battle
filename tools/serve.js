@@ -88,27 +88,31 @@ function openBrowser(url) {
   exec(cmd);
 }
 
-function listen(port, triesLeft) {
-  server.once('error', (err) => {
-    if (err.code === 'EADDRINUSE' && triesLeft > 0) {
-      console.log(`Port ${port} ist belegt, versuche ${port + 1} ...`);
-      listen(port + 1, triesLeft - 1);
-    } else {
-      console.error('Server konnte nicht starten:', err.message);
-      process.exit(1);
-    }
-  });
-  server.listen(port, '0.0.0.0', () => {
-    const url = `http://localhost:${port}/`;
-    console.log('');
-    console.log('  STREET BATTLE läuft!');
-    console.log(`  Auf diesem PC:        ${url}`);
-    for (const ip of lanAddresses()) console.log(`  Im WLAN (z. B. Handy): http://${ip}:${port}/`);
-    console.log('');
-    console.log('  Zum Beenden dieses Fenster schließen oder Strg+C drücken.');
-    console.log('');
-    if (OPEN_BROWSER) openBrowser(url);
-  });
-}
+let port = FIRST_PORT;
+let triesLeft = 10;
 
-listen(FIRST_PORT, 10);
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE' && triesLeft > 0) {
+    console.log(`Port ${port} ist belegt, versuche ${port + 1} ...`);
+    triesLeft--;
+    port++;
+    server.listen(port, '0.0.0.0');
+  } else {
+    console.error('Server konnte nicht starten:', err.message);
+    process.exit(1);
+  }
+});
+
+server.on('listening', () => {
+  const url = `http://localhost:${port}/`;
+  console.log('');
+  console.log('  STREET BATTLE läuft!');
+  console.log(`  Auf diesem PC:        ${url}`);
+  for (const ip of lanAddresses()) console.log(`  Im WLAN (z. B. Handy): http://${ip}:${port}/`);
+  console.log('');
+  console.log('  Zum Beenden dieses Fenster schließen oder Strg+C drücken.');
+  console.log('');
+  if (OPEN_BROWSER) openBrowser(url);
+});
+
+server.listen(port, '0.0.0.0');

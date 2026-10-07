@@ -10,7 +10,7 @@ Bezeichner auf Englisch, Kommentare knapp und erklärend.
 - Starten (Windows): `start.bat` doppelklicken, oder `node tools/serve.js --open` → http://localhost:8080
 - Tests: `npm test` (= `node --test`, findet `tests/*.test.js`), einzeln z. B. `node tests/determinism.test.js`
 - Debug: `?debug` in der URL oder F1 zeigt Hit-/Hurt-/Pushboxen.
-- itch.io-ZIP: `tools/make-itch-zip.bat`
+- itch.io-ZIP: `tools/make-itch-zip.bat` (nutzt das Windows-eigene `tar.exe`)
 
 ## Architektur (PFLICHT – nicht aufweichen)
 
@@ -55,7 +55,31 @@ Bezeichner auf Englisch, Kommentare knapp und erklärend.
   wenn beide Eingaben da sind. Pakete enthalten alle unbestätigten Eingaben (mind. die letzten 8)
   + `ack`. Alle 60 Ticks Prüfsumme; bei Abweichung startet der Host die Runde neu (`sync`).
 - lockstep.js ist transportunabhängig (Tests in Node mit simuliertem Netz), net.js kapselt PeerJS.
-- Spielwerte (`gameplayConfig()`) werden beim Verbinden per Hash verglichen.
+- Protokoll robust gegen Verlust, Duplikate und Vertauschung (DataConnection `reliable:false` =
+  ungeordnet). Steuer-Nachrichten (`sync`, `desync`, `rematch`) werden wiederholt, bis sie wirken.
+  Alles ist Session-nummeriert; `sync` (Host → Gast) startet Spiel, Rematch und Desync-Neustart.
+- online.js: `OnlineLobby` (Raum erstellen/beitreten) und `OnlineSession` (hello/ping/pong/bye/busy,
+  Abbruch nach `NET.DISCONNECT_TIMEOUT_MS`). Host = Spieler 1. Der Delay des Hosts gilt für beide.
+- Spielwerte (`gameplayConfig()`) werden beim Verbinden per Hash verglichen (`CONFIG_HASH`).
+- PeerJS wird erst im Online-Menü per CDN geladen (`NET.PEERJS_URLS`, Version fest gepinnt).
+
+### Grafik-Details
+- Posen in poses.js; Angriffs-Animationen werden aus `startup/active/recovery` abgeleitet.
+  Neuer Angriff → Eintrag in `MOVES` (config.js) + `ATTACKS` (poses.js) + ggf. `KICKS` (render.js, Leuchtspur).
+- `tests/poses.html` zeigt alle Posen mit Hitboxen nebeneinander.
+
+### Spielschleife-Details
+- `requestAnimationFrame` + `setTimeout`-Sicherheitsnetz (verdeckte Fenster/Tabs laufen weiter, wichtig online).
+- Lokal/Training pausieren, wenn der Tab versteckt wird.
+
+## URL-Parameter und Test-Hilfen
+- `?debug` Hitboxen + Debug-Text, F9 erzwingt online einen Desync · `?join=CODE` tritt direkt bei ·
+  `?autohost` erstellt sofort einen Raum · `?bot=SEED` online spielt ein Bot ·
+  `?test` keine Auto-Pause, ungedrosselte Schleife (MessageChannel) auch im versteckten Tab.
+- `window.streetBattle` (Konsole/Tests): `session`, `renderer`, `ui`, `lobby`, `freeze`,
+  `frames(n)`, `until(cond)`, `key(code, down)`.
+- `tests/online-test.html`: Host + Gast in iframes über echtes PeerJS mit Bots, zeigt Prüfsummen/Desyncs,
+  klickt nach Match-Ende Rematch.
 
 ## Dateien
 - `src/config.js` – ALLE Spielwerte (Frame-Daten, Schaden, Tempo, Hitboxen, Runden, Netz, Tasten, Farben)
