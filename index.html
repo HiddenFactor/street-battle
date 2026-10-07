@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0716">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="Street Battle – 2D-Fighting-Game für zwei Spieler, lokal oder online.">
+  <title>Street Battle</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="stage">
+    <canvas id="game" width="960" height="540"></canvas>
+
+    <div id="ui">
+      <!-- Hauptmenü -->
+      <section class="screen" id="screen-title">
+        <h1 class="logo"><span>STREET</span><span>BATTLE</span></h1>
+        <div class="menu">
+          <button data-action="local">Lokal – 2 Spieler</button>
+          <button data-action="online">Online spielen</button>
+          <button data-action="training">Training</button>
+          <button data-action="help" class="secondary">Steuerung</button>
+        </div>
+        <p class="hint" id="title-hint"></p>
+      </section>
+
+      <!-- Online-Lobby -->
+      <section class="screen" id="screen-online">
+        <h2>Online spielen</h2>
+        <div class="online-grid">
+          <div class="panel">
+            <h3>Raum erstellen</h3>
+            <p>Du bekommst einen Code für deinen Gegner.</p>
+            <button data-action="host">Raum erstellen</button>
+            <label class="delay">Eingabeverzögerung:
+              <input type="range" id="delay" min="1" max="8" step="1" value="3">
+              <b id="delay-value">3</b> Frames
+            </label>
+            <p class="small">Mehr = ruckelfreier, aber träger. Der Wert des Raum-Erstellers gilt für beide.</p>
+          </div>
+          <div class="panel">
+            <h3>Beitreten</h3>
+            <p>Code vom anderen Spieler eingeben:</p>
+            <input id="join-code" type="text" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="CODE">
+            <button data-action="join">Beitreten</button>
+          </div>
+        </div>
+        <p class="status" id="online-status"></p>
+        <div class="menu row">
+          <button data-action="back" class="secondary">Zurück</button>
+        </div>
+      </section>
+
+      <!-- Warten auf Mitspieler -->
+      <section class="screen" id="screen-host">
+        <h2>Raum erstellt</h2>
+        <p>Sag deinem Gegner diesen Code:</p>
+        <div class="room-code" id="room-code">-----</div>
+        <div class="menu row">
+          <button data-action="copy-link">Einladungslink kopieren</button>
+          <button data-action="share-link" id="btn-share" hidden>Teilen</button>
+        </div>
+        <p class="status" id="host-status">Warte auf Mitspieler …</p>
+        <div class="menu row">
+          <button data-action="cancel-online" class="secondary">Abbrechen</button>
+        </div>
+      </section>
+
+      <!-- Verbinden (Gast) -->
+      <section class="screen" id="screen-connecting">
+        <h2>Verbinde …</h2>
+        <div class="spinner"></div>
+        <p class="status" id="connect-status">Suche Raum …</p>
+        <div class="menu row">
+          <button data-action="cancel-online" class="secondary">Abbrechen</button>
+        </div>
+      </section>
+
+      <!-- Steuerung -->
+      <section class="screen" id="screen-help">
+        <h2>Steuerung</h2>
+        <table class="controls">
+          <tr><th></th><th>Spieler 1</th><th>Spieler 2</th><th>Gamepad</th></tr>
+          <tr><td>Laufen / Springen / Ducken</td><td>W A S D</td><td>Pfeiltasten</td><td>Steuerkreuz / Stick</td></tr>
+          <tr><td>Schneller Angriff</td><td>F</td><td>Num 1 oder ,</td><td>X / □</td></tr>
+          <tr><td>Starker Angriff</td><td>G</td><td>Num 2 oder .</td><td>Y / △</td></tr>
+          <tr><td>Special (Energieball)</td><td>H</td><td>Num 3 oder -</td><td>B / ○</td></tr>
+        </table>
+        <ul class="tips">
+          <li><b>Blocken:</b> vom Gegner weg halten. Geduckt blocken gegen tiefe Tritte, stehend gegen Sprung-Angriffe.</li>
+          <li>Unten + Angriff = tiefer Angriff. In der Luft angreifen = Sprung-Angriff.</li>
+          <li>Schnelle Angriffe lassen sich bei Kontakt in den Energieball abbrechen.</li>
+          <li>Pause: Esc / P / Start. Training: T wechselt den Dummy, F1 zeigt die Hitboxen.</li>
+        </ul>
+        <div class="menu row">
+          <button data-action="back" class="secondary">Zurück</button>
+        </div>
+      </section>
+
+      <!-- Pause -->
+      <section class="screen dim" id="screen-pause">
+        <h2>Pause</h2>
+        <div class="menu">
+          <button data-action="resume">Weiter</button>
+          <button data-action="dummy" id="btn-dummy" hidden>Dummy: Stehen</button>
+          <button data-action="hitboxes" id="btn-hitboxes" hidden>Hitboxen: aus</button>
+          <button data-action="quit" class="secondary">Hauptmenü</button>
+        </div>
+      </section>
+
+      <!-- Match-Ende -->
+      <section class="screen dim" id="screen-end">
+        <h2 id="end-title">SPIELER 1 GEWINNT!</h2>
+        <p id="end-score" class="score"></p>
+        <div class="menu">
+          <button data-action="rematch" id="btn-rematch">Rematch</button>
+          <button data-action="quit" class="secondary">Hauptmenü</button>
+        </div>
+        <p class="status" id="end-status"></p>
+      </section>
+
+      <!-- Meldung (Fehler, Verbindungsabbruch ...) -->
+      <section class="screen dim" id="screen-message">
+        <h2 id="message-title">Hinweis</h2>
+        <p id="message-text" class="message-text"></p>
+        <div class="menu row">
+          <button data-action="message-ok">OK</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- Knöpfe oben in der Mitte -->
+    <div id="top-buttons">
+      <button id="btn-pause" title="Pause" aria-label="Pause" hidden>❚❚</button>
+      <button id="btn-mute" title="Ton an/aus" aria-label="Ton an/aus">🔊</button>
+      <button id="btn-fullscreen" title="Vollbild" aria-label="Vollbild">⛶</button>
+    </div>
+  </div>
+
+  <!-- Touch-Steuerung (wird auf Touch-Geräten automatisch eingeblendet) -->
+  <div id="touch" hidden>
+    <div id="dpad"><div class="dpad-ring"></div><div id="dpad-knob"></div></div>
+    <div id="touch-buttons">
+      <button class="tbtn" data-btn="light">L</button>
+      <button class="tbtn" data-btn="heavy">S</button>
+      <button class="tbtn" data-btn="special">★</button>
+    </div>
+  </div>
+
+  <div id="rotate-hint">
+    <div class="phone-icon"></div>
+    <p>Bitte das Handy quer drehen</p>
+  </div>
+
+  <div id="toast"></div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

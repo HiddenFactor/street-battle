@@ -1,0 +1,14 @@
+{
+  "name": "Street Battle",
+  "short_name": "StreetBattle",
+  "description": "2D-Fighting-Game für zwei Spieler – lokal oder online.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#07050d",
+  "theme_color": "#07050d",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
