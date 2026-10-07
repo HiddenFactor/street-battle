@@ -11,6 +11,8 @@ import { UI } from './ui.js';
 import { Sound } from './audio.js';
 import { attachKeyboard, onKeyPress, TouchInput, GamepadInput } from './input.js';
 import { LocalSession, TrainingSession, DemoSession } from './sessions.js';
+import { OnlineLobby } from './online.js';
+import { ERRORS } from './net.js';
 import { KEYS, LOOK } from './config.js';
 
 const STEP_MS = 1000 / 60;
@@ -33,6 +35,7 @@ let paused = false;
 let acc = 0;
 let last = performance.now();
 let lastSecond = -1;
+let banner = null; // große Meldung im Bild (z. B. Desync)
 
 renderer.showBoxes = params.has('debug');
 
@@ -79,6 +82,12 @@ function goToMenu() {
 }
 
 function pause() {
+  if (session.kind === 'online') {
+    // Online gibt es keine Pause – nur "Spiel verlassen?"
+    if (ui.current === 'leave') ui.hide();
+    else if (!ui.isOpen()) ui.show('leave');
+    return;
+  }
   if (!session.canPause || paused || ui.isOpen()) return;
   paused = true;
   const training = session.kind === 'training';
@@ -99,7 +108,9 @@ function resume() {
 function showMatchEnd(winner) {
   const s = session.state;
   const names = LOOK.PLAYERS.map((p) => p.name);
-  ui.setText('end-title', winner < 0 ? 'UNENTSCHIEDEN!' : `${names[winner]} GEWINNT!`);
+  let title = winner < 0 ? 'UNENTSCHIEDEN!' : `${names[winner]} GEWINNT!`;
+  if (session.kind === 'online' && winner >= 0) title = winner === session.localPlayer ? 'DU GEWINNST!' : 'DU VERLIERST!';
+  ui.setText('end-title', title);
   ui.setText('end-score', `${s.wins[0]} : ${s.wins[1]}`);
   ui.setStatus('end-status', '');
   $('btn-rematch').disabled = false;
@@ -109,7 +120,7 @@ function showMatchEnd(winner) {
 
 // Knöpfe oben: im Menü in die Ecke, im Spiel unter den Timer
 function updateChrome() {
-  $('btn-pause').hidden = !session.canPause || session.kind === 'demo';
+  $('btn-pause').hidden = session.kind === 'demo';
   document.body.classList.toggle('in-menu', session.kind === 'demo');
   $('btn-mute').textContent = sound.muted ? '🔇' : '🔊';
 }
@@ -138,7 +149,37 @@ ui.on('training', () => {
   startSession(new TrainingSession(touchInput));
   ui.toast('Training: T = Dummy wechseln, F1 = Hitboxen', 3500);
 });
-ui.on('online', () => ui.message('Online', 'Der Online-Modus folgt in Kürze.', () => ui.show('title')));
+// ---------------------------------------------------------------------
+// Online
+// ---------------------------------------------------------------------
+const lobby = new OnlineLobby({
+  ui,
+  sound,
+  touch: touchInput,
+  botSeed: parseInt(params.get('bot'), 10) || 0,
+  onStart: (online) => {
+    startSession(online);
+    ui.toast(online.isHost ? 'Verbunden! Du bist links (blau).' : 'Verbunden! Du bist rechts (rot).', 3500);
+  },
+  onFail: (key) => {
+    const [title, text] = ERRORS[key] || ERRORS.closed;
+    sound.play('error');
+    startSession(new DemoSession());
+    ui.message(title, text, () => ui.show('title'));
+  },
+});
+
+function showBanner(text, seconds = 3) {
+  banner = { text, until: performance.now() + seconds * 1000 };
+}
+
+ui.on('online', () => lobby.open());
+ui.on('host', () => lobby.host());
+ui.on('join', () => lobby.join($('join-code').value));
+ui.on('cancel-online', () => lobby.cancel());
+ui.on('copy-link', () => lobby.copyLink());
+ui.on('share-link', () => lobby.shareLink());
+ui.on('stay', () => ui.hide());
 ui.on('help', () => ui.show('help'));
 ui.on('back', () => ui.show('title'));
 ui.on('resume', resume);
@@ -146,6 +187,12 @@ ui.on('quit', goToMenu);
 ui.on('dummy', nextDummyMode);
 ui.on('hitboxes', toggleHitboxes);
 ui.on('rematch', () => {
+  if (session.kind === 'online') {
+    session.rematch();
+    $('btn-rematch').disabled = true;
+    ui.setStatus('end-status', 'Warte auf deinen Gegner …');
+    return;
+  }
   session.rematch();
   ui.hide();
   updateChrome();
@@ -183,13 +230,16 @@ function toggleFullscreen() {
 attachKeyboard();
 onKeyPress((code) => {
   if (KEYS.PAUSE.includes(code)) {
-    if (paused) resume();
+    if (session.kind === 'online' && (ui.current === 'leave' || !ui.isOpen())) pause();
+    else if (paused) resume();
     else if (!ui.isOpen()) pause();
     else if (ui.current === 'help' || ui.current === 'online') ui.show('title');
   } else if (KEYS.HITBOXES.includes(code)) {
     toggleHitboxes();
   } else if (KEYS.DUMMY_MODE.includes(code)) {
     nextDummyMode();
+  } else if (code === 'F9' && params.has('debug') && session.debugDesync) {
+    session.debugDesync(); // Test: Desync absichtlich auslösen
   }
 });
 
@@ -225,6 +275,15 @@ function handleEvents() {
     renderer.onEvent(e);
     if (!quiet) sound.onEvent(e);
     if (e.type === 'matchEnd' && !quiet) showMatchEnd(e.winner);
+    if (e.type === 'desync') showBanner('DESYNC – Runde wird neu gestartet');
+    if (e.type === 'sync') {
+      if (e.reason === 'desync') showBanner('DESYNC – Runde wird neu gestartet');
+      if (ui.current === 'end' || ui.current === 'leave') ui.hide();
+    }
+    if (e.type === 'rematchRequest') {
+      if (ui.current === 'end') ui.setStatus('end-status', 'Dein Gegner will ein Rematch!');
+      else ui.toast('Dein Gegner will ein Rematch!');
+    }
   }
   // Countdown-Piepen in den letzten 10 Sekunden
   const s = session.state;
@@ -267,6 +326,7 @@ function frame(now) {
       dummyLabel: session.kind === 'training' ? session.dummy.mode.label : null,
       net: session.netInfo ? session.netInfo() : null,
       waiting: session.waitingText ? session.waitingText() : null,
+      banner: banner && performance.now() < banner.until ? banner.text : null,
       dt,
     });
   }
@@ -323,6 +383,7 @@ window.streetBattle = {
   renderer,
   ui,
   sound,
+  lobby,
   freeze: false, // true = Spiel anhalten, ohne das Pause-Menü (für Tests/Screenshots)
   frames: (n) => new Promise((resolve) => waiters.push({ n, resolve })),
   async until(cond, maxFrames = 1200) {
@@ -337,3 +398,18 @@ window.streetBattle = {
 ui.show('title');
 updateChrome();
 schedule();
+
+// Seite wird geschlossen → dem Gegner Bescheid geben
+window.addEventListener('pagehide', () => {
+  if (session.kind === 'online') session.dispose();
+});
+
+// Einladungslink (?join=CODE) oder automatischer Raum (?autohost, für Tests)
+if (params.get('join')) {
+  lobby.open();
+  $('join-code').value = params.get('join').toUpperCase();
+  lobby.join(params.get('join'));
+} else if (params.has('autohost')) {
+  lobby.open();
+  lobby.host();
+}

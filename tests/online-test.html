@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Street Battle – Online-Test</title>
+  <style>
+    body { margin: 0; background: #111; color: #ddd; font: 14px system-ui, sans-serif; }
+    header { padding: 8px 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .frames { display: flex; gap: 8px; padding: 0 8px; }
+    .frames > div { flex: 1; }
+    iframe { width: 100%; aspect-ratio: 16 / 9; border: 1px solid #444; background: #000; }
+    pre { margin: 4px 0; font: 12px monospace; white-space: pre-wrap; }
+    .ok { color: #7dff9b; } .bad { color: #ff7a8a; }
+  </style>
+</head>
+<body>
+  <header>
+    <b>Online-Test:</b> Zwei Spiele verbinden sich über echtes PeerJS, Bots spielen gegeneinander.
+    <button id="desync">Desync erzwingen</button>
+    <button id="restart">Neu starten</button>
+    <span id="summary"></span>
+  </header>
+  <div class="frames">
+    <div><iframe id="host"></iframe><pre id="host-info">Host startet …</pre></div>
+    <div><iframe id="guest"></iframe><pre id="guest-info">Gast wartet auf Raumcode …</pre></div>
+  </div>
+  <script>
+    const hostFrame = document.getElementById('host');
+    const guestFrame = document.getElementById('guest');
+    const startedAt = Date.now();
+    hostFrame.src = '../index.html?test&autohost&bot=11';
+
+    // Raumcode vom Host abholen und den Gast beitreten lassen
+    const waitCode = setInterval(() => {
+      const sb = hostFrame.contentWindow && hostFrame.contentWindow.streetBattle;
+      if (sb && sb.lobby && sb.lobby.code && sb.ui.current === 'host') {
+        clearInterval(waitCode);
+        guestFrame.src = '../index.html?test&bot=22&join=' + sb.lobby.code;
+      }
+    }, 200);
+
+    function describe(win) {
+      const sb = win && win.streetBattle;
+      if (!sb) return { text: 'lädt …' };
+      const s = sb.session;
+      if (s.kind !== 'online') return { text: `Modus: ${s.kind}, Bildschirm: ${sb.ui.current || '-'}` };
+      const ls = s.lockstep;
+      const st = s.state;
+      return {
+        ls,
+        text:
+          `Session ${ls.session}  Frame ${ls.frame}  Spiel-Frame ${st.frame}\n` +
+          `Phase ${st.phase}  Runde ${st.round}  Siege ${st.wins.join(':')}  HP ${st.fighters.map((f) => f.hp).join('/')}\n` +
+          `Ping ${Math.round(s.ping)} ms  Verzögerung ${ls.delay}  Warten: ${s.waitingText() || '-'}\n` +
+          `Prüfsummen verglichen: ${ls.checksumsCompared}  Desyncs: ${ls.desyncCount}`,
+      };
+    }
+
+    setInterval(() => {
+      const h = describe(hostFrame.contentWindow);
+      const g = describe(guestFrame.contentWindow);
+      document.getElementById('host-info').textContent = 'HOST (Spieler 1)\n' + h.text;
+      document.getElementById('guest-info').textContent = 'GAST (Spieler 2)\n' + g.text;
+      const sum = document.getElementById('summary');
+      if (h.ls && g.ls) {
+        const secs = Math.round((Date.now() - startedAt) / 1000);
+        const desyncs = h.ls.desyncCount + g.ls.desyncCount;
+        sum.className = desyncs ? 'bad' : 'ok';
+        sum.textContent = `${secs}s · ${h.ls.checksumsCompared + g.ls.checksumsCompared} Prüfsummen verglichen · ${desyncs} Desyncs`;
+      }
+    }, 300);
+
+    document.getElementById('desync').onclick = () => {
+      const s = guestFrame.contentWindow.streetBattle.session;
+      if (s.debugDesync) s.debugDesync();
+    };
+    document.getElementById('restart').onclick = () => location.reload();
+  </script>
+</body>
+</html>

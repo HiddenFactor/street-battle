@@ -1,0 +1,322 @@
+// =====================================================================
+// online.js – Online-Lobby und Online-Spiel
+// ---------------------------------------------------------------------
+// OnlineLobby:   "Raum erstellen" / "Beitreten" bis die Verbindung steht
+// OnlineSession: das laufende Online-Spiel (Lockstep + Ping + Abbrüche)
+// =====================================================================
+
+import { Lockstep } from './lockstep.js';
+import { createMatch, checksum } from './sim.js';
+import { GAME_VERSION, NET, KEYS, gameplayConfig } from './config.js';
+import { KeyboardInput, GamepadInput, BotInput, combine } from './input.js';
+import { Net, ERRORS, loadPeerJS, makeRoomCode, cleanCode, isValidCode } from './net.js';
+
+/** Prüfsumme der Spielwerte – muss bei beiden Spielern gleich sein. */
+export const CONFIG_HASH = checksum(gameplayConfig());
+
+const DELAY_KEY = 'streetbattle-delay';
+
+function loadDelay() {
+  try {
+    const v = parseInt(localStorage.getItem(DELAY_KEY), 10);
+    if (v >= NET.MIN_DELAY && v <= NET.MAX_DELAY) return v;
+  } catch {
+    /* kein Speicher */
+  }
+  return NET.DEFAULT_DELAY;
+}
+
+function saveDelay(v) {
+  try {
+    localStorage.setItem(DELAY_KEY, String(v));
+  } catch {
+    /* egal */
+  }
+}
+
+// =====================================================================
+// Das laufende Online-Spiel
+// =====================================================================
+export class OnlineSession {
+  constructor({ net, isHost, delay, touch, botSeed, onFail }) {
+    this.kind = 'online';
+    this.canPause = false;
+    this.isHost = isHost;
+    this.localPlayer = isHost ? 0 : 1;
+    this.net = net;
+    this.delay = delay;
+    this.onFail = onFail;
+    this.events = [];
+    this.failed = false;
+    this.gotHello = false;
+    this.ping = -1;
+    this.remoteHidden = false;
+    this.lastReceive = performance.now();
+    this.lastAdvance = performance.now();
+    this.placeholder = createMatch();
+    this.lockstep = new Lockstep({ isHost, send: (m) => net.send(m) });
+    const me = this.localPlayer;
+    this.input = botSeed
+      ? new BotInput(botSeed, () => this.state.fighters[me], () => this.state.fighters[1 - me])
+      : combine(new KeyboardInput(KEYS.P1), new KeyboardInput(KEYS.P2), new GamepadInput(0), touch);
+
+    net.onData = (msg) => this.receive(msg);
+    net.onError = (key) => this.fail(key);
+    this.hello();
+    this.pingTimer = setInterval(() => this.sendPing(), NET.PING_INTERVAL_MS);
+  }
+
+  get state() {
+    return this.lockstep.state || this.placeholder;
+  }
+
+  hello() {
+    this.net.send({ t: 'hello', v: GAME_VERSION, cfg: CONFIG_HASH });
+  }
+
+  sendPing() {
+    if (this.failed) return;
+    this.net.send({ t: 'ping', ts: performance.now(), hid: document.hidden, v: GAME_VERSION, cfg: CONFIG_HASH });
+    if (performance.now() - this.lastReceive > NET.DISCONNECT_TIMEOUT_MS) this.fail('lost');
+  }
+
+  receive(msg) {
+    if (this.failed || !msg) return;
+    this.lastReceive = performance.now();
+    switch (msg.t) {
+      case 'hello':
+      case 'ping':
+        if (msg.t === 'ping') {
+          this.net.send({ t: 'pong', ts: msg.ts });
+          this.remoteHidden = !!msg.hid;
+        }
+        if (!this.gotHello) {
+          if (msg.v !== GAME_VERSION || msg.cfg !== CONFIG_HASH) {
+            this.hello(); // damit der andere es auch merkt
+            this.fail('version');
+            return;
+          }
+          this.gotHello = true;
+          // Der Host startet das Spiel, sobald der Gast "Hallo" gesagt hat
+          if (this.isHost && !this.lockstep.session) this.lockstep.hostStart(createMatch(), this.delay, 'start');
+        }
+        break;
+      case 'pong': {
+        const rtt = performance.now() - msg.ts;
+        this.ping = this.ping < 0 ? rtt : this.ping * 0.7 + rtt * 0.3;
+        break;
+      }
+      case 'bye':
+        this.fail('left');
+        break;
+      case 'busy':
+        this.fail('busy');
+        break;
+      default:
+        this.lockstep.receive(msg);
+    }
+  }
+
+  tick() {
+    if (this.failed) return false;
+    const advanced = this.lockstep.tick(this.input.read());
+    for (const e of this.lockstep.takeEvents()) this.events.push(e);
+    if (advanced) this.lastAdvance = performance.now();
+    return advanced;
+  }
+
+  takeEvents() {
+    const list = this.events;
+    this.events = [];
+    return list;
+  }
+
+  /** Text für "Warte auf Gegner ..." (oder null, wenn alles läuft) */
+  waitingText() {
+    if (this.failed) return null;
+    if (!this.lockstep.session) return 'Verbinde';
+    if (performance.now() - this.lastAdvance < NET.WAIT_MESSAGE_MS) return null;
+    return this.remoteHidden ? 'Gegner hat den Tab gewechselt' : 'Warte auf Gegner';
+  }
+
+  netInfo() {
+    return { ping: this.ping, delay: this.lockstep.delay };
+  }
+
+  rematch() {
+    this.lockstep.requestRematch();
+  }
+
+  fail(key) {
+    if (this.failed) return;
+    this.failed = true;
+    clearInterval(this.pingTimer);
+    this.net.close();
+    if (this.onFail) this.onFail(key);
+  }
+
+  dispose() {
+    clearInterval(this.pingTimer);
+    if (!this.failed) {
+      this.failed = true;
+      this.net.send({ t: 'bye' });
+      const net = this.net;
+      setTimeout(() => net.close(), 300); // "bye" noch rausschicken lassen
+    }
+  }
+
+  /** Nur zum Testen: Desync absichtlich auslösen */
+  debugDesync() {
+    this.lockstep.corrupt();
+  }
+}
+
+// =====================================================================
+// Die Lobby: Raum erstellen oder beitreten
+// =====================================================================
+export class OnlineLobby {
+  /**
+   * ui, sound: aus main.js
+   * onStart(session): wird mit der fertigen OnlineSession aufgerufen
+   * onFail(key): Online-Spiel bricht ab
+   */
+  constructor({ ui, sound, touch, onStart, onFail, botSeed }) {
+    this.ui = ui;
+    this.sound = sound;
+    this.touch = touch;
+    this.onStart = onStart;
+    this.onFail = onFail;
+    this.botSeed = botSeed || 0;
+    this.net = null;
+    this.code = '';
+    this.delay = loadDelay();
+
+    const slider = document.getElementById('delay');
+    slider.min = NET.MIN_DELAY;
+    slider.max = NET.MAX_DELAY;
+    slider.value = this.delay;
+    ui.setText('delay-value', String(this.delay));
+    slider.addEventListener('input', () => {
+      this.delay = parseInt(slider.value, 10);
+      ui.setText('delay-value', String(this.delay));
+      saveDelay(this.delay);
+    });
+    const codeInput = document.getElementById('join-code');
+    codeInput.addEventListener('input', () => {
+      const clean = cleanCode(codeInput.value).slice(0, NET.CODE_LENGTH);
+      if (codeInput.value !== clean) codeInput.value = clean;
+    });
+    codeInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') this.join(codeInput.value);
+    });
+    document.getElementById('btn-share').hidden = !navigator.share;
+  }
+
+  open() {
+    this.cancel(false);
+    this.ui.show('online');
+    this.ui.setStatus('online-status', 'Lade Online-Modul …');
+    loadPeerJS().then(
+      () => this.ui.current === 'online' && this.ui.setStatus('online-status', 'Bereit. Erstelle einen Raum oder tritt mit einem Code bei.'),
+      () => this.ui.current === 'online' && this.ui.setStatus('online-status', ERRORS.load[1], true),
+    );
+  }
+
+  async host() {
+    this.cancel(false);
+    this.ui.setStatus('online-status', 'Erstelle Raum …');
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const code = makeRoomCode();
+      const net = new Net();
+      this.net = net;
+      try {
+        await net.host(code);
+      } catch (err) {
+        net.close();
+        if (this.net !== net) return; // inzwischen abgebrochen
+        if (err.key === 'taken') continue;
+        this.showError(err.key || 'server');
+        return;
+      }
+      if (this.net !== net) return;
+      this.code = code;
+      this.ui.setText('room-code', code);
+      this.ui.setStatus('host-status', 'Warte auf Mitspieler …');
+      this.ui.show('host');
+      net.onError = (key) => this.showError(key);
+      net.onOpen = () => this.connected(net, true);
+      return;
+    }
+    this.showError('server');
+  }
+
+  async join(text) {
+    const code = cleanCode(text);
+    if (!isValidCode(code)) {
+      this.ui.setStatus('online-status', `Der Code hat ${NET.CODE_LENGTH} Zeichen (Buchstaben A–Z und Zahlen 2–9).`, true);
+      this.sound.play('error');
+      return;
+    }
+    this.cancel(false);
+    this.ui.show('connecting');
+    this.ui.setStatus('connect-status', `Suche Raum ${code} …`);
+    const net = new Net();
+    this.net = net;
+    try {
+      await net.join(code);
+    } catch (err) {
+      if (this.net !== net) return;
+      this.showError(err.key || 'server');
+      return;
+    }
+    if (this.net !== net) return;
+    this.connected(net, false);
+  }
+
+  connected(net, isHost) {
+    this.net = null; // gehört jetzt der Session
+    this.sound.play('connect');
+    const session = new OnlineSession({
+      net,
+      isHost,
+      delay: this.delay,
+      touch: this.touch,
+      botSeed: this.botSeed,
+      onFail: (key) => this.onFail(key),
+    });
+    this.onStart(session);
+  }
+
+  cancel(showLobby = true) {
+    if (this.net) this.net.close();
+    this.net = null;
+    if (showLobby) this.ui.show('online');
+  }
+
+  showError(key) {
+    if (this.net) this.net.close();
+    this.net = null;
+    const [title, text] = ERRORS[key] || ERRORS.server;
+    this.sound.play('error');
+    this.ui.message(title, text, () => this.open());
+  }
+
+  inviteLink() {
+    return `${location.origin}${location.pathname}?join=${this.code}`;
+  }
+
+  copyLink() {
+    const link = this.inviteLink();
+    const done = () => this.ui.toast('Link kopiert! Schick ihn deinem Gegner.');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(link).then(done, () => window.prompt('Link zum Kopieren:', link));
+    } else {
+      window.prompt('Link zum Kopieren:', link);
+    }
+  }
+
+  shareLink() {
+    if (!navigator.share) return this.copyLink();
+    navigator.share({ title: 'Street Battle', text: `Kämpf gegen mich! Raumcode: ${this.code}`, url: this.inviteLink() }).catch(() => {});
+  }
+}

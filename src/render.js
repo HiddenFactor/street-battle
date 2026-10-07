@@ -471,6 +471,7 @@ export class Renderer {
       this.drawAnnouncements(state, view);
     }
     if (view.waiting) this.drawWaiting(view.waiting);
+    if (view.banner) this.drawBanner(view.banner);
     if (state && this.showBoxes) this.drawDebugText(state);
   }
 
@@ -1209,6 +1210,17 @@ export class Renderer {
     ctx.fillRect(0, 200, VIEW_W, 90);
     const dots = '.'.repeat(1 + (Math.floor(this.time * 3) % 3));
     this.text(text + dots, VIEW_W / 2, 245, 28, { fill: '#fff', stroke: OUTLINE, line: 5 });
+  }
+
+  drawBanner(text) {
+    const ctx = this.ctx;
+    const pulse = 0.85 + Math.sin(this.time * 10) * 0.15;
+    ctx.fillStyle = `rgba(160,10,30,${0.85 * pulse})`;
+    ctx.fillRect(0, 300, VIEW_W, 64);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 300, VIEW_W, 3);
+    ctx.fillRect(0, 361, VIEW_W, 3);
+    this.text(text, VIEW_W / 2, 333, 30, { fill: '#fff', stroke: OUTLINE, line: 5 });
   }
 
   // -------------------------------------------------------------------
