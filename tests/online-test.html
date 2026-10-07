@@ -70,6 +70,26 @@
       }
     }, 300);
 
+    // Nach dem Match-Ende drücken beide "Rematch" (nacheinander, wie echte Spieler)
+    let rematches = 0;
+    setInterval(() => {
+      const wins = [hostFrame, guestFrame].map((f) => f.contentWindow && f.contentWindow.streetBattle);
+      if (!wins[0] || !wins[1]) return;
+      wins.forEach((sb, i) => {
+        if (sb.ui.current === 'end' && !document.getElementById('btn-rematch-' + i)) {
+          const marker = document.createElement('i');
+          marker.id = 'btn-rematch-' + i;
+          document.body.appendChild(marker);
+          setTimeout(() => {
+            sb.ui.emit('rematch');
+            marker.remove();
+            if (i === 1) rematches++;
+          }, 1500 + i * 1500);
+        }
+      });
+      document.title = `Online-Test (${rematches} Rematches)`;
+    }, 500);
+
     document.getElementById('desync').onclick = () => {
       const s = guestFrame.contentWindow.streetBattle.session;
       if (s.debugDesync) s.debugDesync();

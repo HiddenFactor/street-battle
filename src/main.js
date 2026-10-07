@@ -12,6 +12,7 @@ import { Sound } from './audio.js';
 import { attachKeyboard, onKeyPress, TouchInput, GamepadInput } from './input.js';
 import { LocalSession, TrainingSession, DemoSession } from './sessions.js';
 import { OnlineLobby } from './online.js';
+import { TouchControls, prefersTouch } from './touch.js';
 import { ERRORS } from './net.js';
 import { KEYS, LOOK } from './config.js';
 
@@ -27,6 +28,7 @@ const renderer = new Renderer(canvas);
 const ui = new UI();
 const sound = new Sound();
 const touchInput = new TouchInput();
+const touch = new TouchControls(touchInput);
 const pads = [new GamepadInput(0), new GamepadInput(1)];
 const $ = (id) => document.getElementById(id);
 
@@ -144,10 +146,13 @@ function nextDummyMode() {
 }
 
 ui.onClick = () => sound.play('menu');
-ui.on('local', () => startSession(new LocalSession(touchInput)));
+ui.on('local', () => {
+  startSession(new LocalSession(touchInput));
+  if (touch.enabled) ui.toast('Spieler 2 braucht eine Tastatur (Pfeiltasten) oder ein Gamepad.', 4000);
+});
 ui.on('training', () => {
   startSession(new TrainingSession(touchInput));
-  ui.toast('Training: T = Dummy wechseln, F1 = Hitboxen', 3500);
+  ui.toast(touch.enabled ? 'Training: Dummy und Hitboxen im Pause-Menü (❚❚)' : 'Training: T = Dummy wechseln, F1 = Hitboxen', 3500);
 });
 // ---------------------------------------------------------------------
 // Online
@@ -300,6 +305,7 @@ function frame(now) {
 
   ui.pollGamepads();
   pollPadPause();
+  touch.setActive(session.kind !== 'demo' && !ui.isOpen());
 
   if (!paused && !window.streetBattle.freeze) {
     acc += dt;
@@ -394,6 +400,10 @@ window.streetBattle = {
     window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup', { code }));
   },
 };
+
+// Hinweise je nach Gerät
+ui.setText('title-hint', prefersTouch() ? 'Tipp: Am Handy am besten „Online“ oder „Training“ spielen.' : 'Gamepads werden automatisch erkannt.');
+$('btn-fullscreen').hidden = !(document.fullscreenEnabled || document.webkitFullscreenEnabled);
 
 ui.show('title');
 updateChrome();
