@@ -7,6 +7,9 @@ Online-Verbindung.
 
 **Modi:** Lokal (2 Spieler) · Online (Raumcode) · Training (gegen einen Dummy)
 
+**▶ Jetzt spielen: <https://hiddenfactor.github.io/street-battle/>**
+(läuft über GitHub Pages – einfach diesen Link verschicken, der PC muss dafür nicht an sein)
+
 ---
 
 ## Steuerung
@@ -99,7 +102,22 @@ Zu niedrig = das Spiel stockt kurz („Warte auf Gegner …“). Zu hoch = die F
 
 Damit dein Bruder von zu Hause mitspielen kann, muss das Spiel im Internet liegen. Zwei kostenlose Wege:
 
-### Weg A: GitHub Pages
+### Weg A: GitHub Pages ✅ (ist bereits eingerichtet)
+
+Das Spiel liegt schon online unter **<https://hiddenfactor.github.io/street-battle/>**
+(Quellcode: <https://github.com/HiddenFactor/street-battle>). Die Commits sind anonymisiert: Für dieses
+Projekt ist im Spielordner die anonyme GitHub-Adresse `…@users.noreply.github.com` eingestellt.
+
+**Eine Änderung online stellen** (z. B. nach dem Balancing in `config.js`): im Spielordner ein Terminal
+öffnen und eingeben:
+```
+git add -A
+git commit -m "Balancing angepasst"
+git push
+```
+Nach etwa 1 Minute ist die neue Version online. Danach laden beide Spieler die Seite neu (F5).
+
+So würdest du es bei einem neuen Projekt selbst einrichten:
 1. Konto anlegen auf <https://github.com> (kostenlos).
 2. Oben rechts **„+“ → „New repository“**. Name z. B. `street-battle`, **Public** auswählen,
    **„Create repository“** klicken.
