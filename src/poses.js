@@ -78,10 +78,11 @@ const ATTACKS = {
     windup: P({ hip: [0, 70], torso: -4, armF: [120, 40], armB: [90, 60], legF: [80, -130], legB: [-10, -100] }),
     strike: P({ hip: [0, 68], torso: -15, head: -6, armF: [130, 30], armB: [100, 60], legF: [65, 0], legB: [-20, -100] }),
   },
+  // Einhändiger Wurf: vorderer Arm holt weit nach hinten aus und schleudert den Ball nach vorn
   special: {
     base: 'stance',
-    windup: P({ hip: [-3, 76], torso: -5, armF: [-30, 70], armB: [-40, 80] }),
-    strike: P({ hip: [6, 74], torso: 18, head: 4, armF: [88, 4], armB: [84, 8], legF: [36, -30], legB: [-28, -6] }),
+    windup: P({ hip: [-4, 77], torso: -10, head: -4, armF: [-55, 50], armB: [60, 80], legF: [26, -30], legB: [-18, -18] }),
+    strike: P({ hip: [6, 74], torso: 16, head: 4, armF: [88, -4], armB: [-20, 50], legF: [36, -30], legB: [-28, -6] }),
   },
 };
 

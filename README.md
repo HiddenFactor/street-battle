@@ -65,7 +65,7 @@ Start, ob Node.js im Netzwerk erreichbar sein darf, „Private Netzwerke“ erla
 3. **Dein Bruder:** „Online spielen“ → Code eintippen → **„Beitreten“**.
    Noch bequemer: Du drückst „Einladungslink kopieren“ und schickst ihm den Link – er tritt dann
    automatisch bei.
-4. Los geht's! Wer den Raum erstellt hat, ist links (blau), der andere rechts (rot). Über deiner Figur
+4. Los geht's! Wer den Raum erstellt hat, ist links (türkis), der andere rechts (violett). Über deiner Figur
    steht „DU“.
 
 Oben in der Mitte siehst du den **Ping** (Laufzeit eurer Verbindung) und die **Eingabeverzögerung**.
@@ -232,6 +232,19 @@ Für Neugierige (über den lokalen Server öffnen):
 - <http://localhost:8080/?debug> – Spiel mit eingeblendeten Hitboxen und Debug-Infos.
 
 ---
+
+## Rechtliches / Herkunft
+
+- **Alles selbst gemacht:** Figuren, Hintergrund, Effekte und Logo werden komplett per Code gezeichnet;
+  alle Sounds werden live per WebAudio erzeugt. Es gibt keine fremden Bilder, Sprites, Schriftdateien,
+  Musik- oder Sprachaufnahmen. Benutzt werden nur Standard-Schriften des Geräts.
+- **Eigener Stil:** Farben der Kämpfer, der einhändige Energieball-Wurf und das Neon-Logo sind bewusst
+  nicht an bekannte Spielfiguren oder Logos angelehnt. Begriffe wie „FIGHT!“, „K.O.“ oder „Energieball“
+  sind allgemeine Genre-Begriffe.
+- **Fremder Code:** nur [PeerJS](https://github.com/peers/peerjs) (MIT-Lizenz), wird beim Online-Spiel
+  vom CDN geladen; dazu der kostenlose PeerJS-Vermittlungsserver.
+- **Name:** „Street Battle“ ist ein Arbeitstitel. Ob ein Name markenrechtlich frei ist, lässt sich in den
+  Registern von DPMA (Deutschland) und EUIPO (EU) nachsehen – das hier ist keine Rechtsberatung.
 
 ## Dateien im Überblick
 

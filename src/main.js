@@ -167,7 +167,7 @@ const lobby = new OnlineLobby({
   botSeed: parseInt(params.get('bot'), 10) || 0,
   onStart: (online) => {
     startSession(online);
-    ui.toast(online.isHost ? 'Verbunden! Du bist links (blau).' : 'Verbunden! Du bist rechts (rot).', 3500);
+    ui.toast(online.isHost ? 'Verbunden! Du bist links (türkis).' : 'Verbunden! Du bist rechts (violett).', 3500);
   },
   onFail: (key) => {
     const [title, text] = ERRORS[key] || ERRORS.closed;

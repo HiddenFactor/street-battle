@@ -20,7 +20,7 @@
 // Spielwerte. Das Spiel prüft das beim Verbinden.
 // =====================================================================
 
-export const GAME_VERSION = '1.1.0';
+export const GAME_VERSION = '1.2.0';
 
 // ---------------------------------------------------------------------
 // Arena
@@ -243,8 +243,9 @@ export const GAMEPAD = {
 // ---------------------------------------------------------------------
 export const LOOK = {
   PLAYERS: [
-    { name: 'SPIELER 1', gi: '#2d6cdf', giDark: '#1b3f8c', belt: '#111318', band: '#ff3b3b', skin: '#f0b98d', hair: '#2a1a12', glow: '#5fb4ff' },
-    { name: 'SPIELER 2', gi: '#e0452f', giDark: '#8f2417', belt: '#111318', band: '#ffd23b', skin: '#d79a6c', hair: '#141010', glow: '#ff9a3c' },
+    // Eigene Farben (bewusst nicht an bekannte Spielfiguren angelehnt)
+    { name: 'SPIELER 1', gi: '#1fa59c', giDark: '#0e5a55', belt: '#111318', band: '#ff8c1a', skin: '#f0b98d', hair: '#2a1a12', glow: '#45f0e0' },
+    { name: 'SPIELER 2', gi: '#7c42d6', giDark: '#43207a', belt: '#111318', band: '#a6f03a', skin: '#d79a6c', hair: '#141010', glow: '#c77dff' },
   ],
   SCREEN_SHAKE: 1.0,     // 0 = aus, 1 = normal, 2 = doppelt
   PARTICLES: 1.0,        // Menge der Partikel (0 = aus)

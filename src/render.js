@@ -41,6 +41,16 @@ function seeded(seed) {
   };
 }
 
+function hexToRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function rgba(hex, a) {
+  const [r, g, b] = hexToRgb(hex);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
 function shade(hex, amount) {
   const n = parseInt(hex.slice(1), 16);
   const f = (c) => clamp(Math.round(c * amount), 0, 255);
@@ -301,8 +311,8 @@ export class Renderer {
       { img: buildSign('24/7', '#7dff6b', 18), x: 860, y: 300, k: 0.1, seed: 3 },
     ];
     this.glows = [
-      buildGlow(110, 190, 255, 1, 128),  // Spieler 1
-      buildGlow(255, 160, 70, 1, 128),   // Spieler 2
+      buildGlow(...hexToRgb(LOOK.PLAYERS[0].glow), 1, 128), // Spieler 1
+      buildGlow(...hexToRgb(LOOK.PLAYERS[1].glow), 1, 128), // Spieler 2
       buildGlow(255, 250, 230, 1, 128),  // weißer Kern
       buildGlow(255, 210, 140, 0.9, 256), // Laterne
     ];
@@ -349,8 +359,8 @@ export class Renderer {
         this.lastAdv = { value: e.adv, kind: 'Block', dmg: 0 };
         break;
       case 'special':
-        this.addParticle({ type: 'ring', x: sx, y: sy, life: 0.25, size: 50, color: e.p === 0 ? 'rgba(110,190,255,1)' : 'rgba(255,160,70,1)' });
-        this.burst(sx, sy, 10, e.p === 0 ? ['#d8f0ff', '#5fb4ff'] : ['#fff0d0', '#ff9a3c'], 260, 'dot', amount);
+        this.addParticle({ type: 'ring', x: sx, y: sy, life: 0.25, size: 50, color: rgba(LOOK.PLAYERS[e.p].glow, 1) });
+        this.burst(sx, sy, 10, ['#ffffff', LOOK.PLAYERS[e.p].glow], 260, 'dot', amount);
         break;
       case 'clash':
         this.burst(sx, sy, 30, ['#fff', '#d8f0ff', '#ffd9a0'], 520, 'spark', amount);
@@ -654,9 +664,9 @@ export class Renderer {
     this.drawLeg(P, j.hip, j.kneeF, j.footF, j.footAngleF, C.gi, C.skin, dir);
     this.drawArm(P, j.shoulder, j.elbowF, j.handF, C.gi, C.skin);
 
-    // Aufladen des Energieballs zwischen den Händen
+    // Aufladen des Energieballs in der Wurfhand
     if (f.state === 'attack' && f.move === 'special' && f.moveFrame < MOVES.special.startup) {
-      const hand = P([(j.handF[0] + j.handB[0]) / 2, (j.handF[1] + j.handB[1]) / 2]);
+      const hand = P(j.handF);
       const t = f.moveFrame / MOVES.special.startup;
       ctx.globalCompositeOperation = 'lighter';
       ctx.globalAlpha = 0.4 + t * 0.6;
@@ -841,7 +851,7 @@ export class Renderer {
         this.addParticle({
           type: 'dot', x: x - dirX * 14 + rand(-6, 6), y: y + rand(-10, 10),
           vx: -dirX * rand(40, 120), vy: rand(-30, 30), life: rand(0.2, 0.4), size: rand(3, 7),
-          color: p.owner === 0 ? '#9fd4ff' : '#ffc27a', drag: 2, grav: 0,
+          color: LOOK.PLAYERS[p.owner].glow, drag: 2, grav: 0,
         });
       }
       ctx.globalCompositeOperation = 'lighter';
