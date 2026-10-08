@@ -7,7 +7,7 @@
 // =====================================================================
 
 import { createMatch, step } from './sim.js';
-import { KEYS } from './config.js';
+import { KEYS, CHARACTER_ORDER } from './config.js';
 import { KeyboardInput, GamepadInput, BotInput, DummyInput, combine } from './input.js';
 
 class BaseSession {
@@ -69,10 +69,16 @@ export class TrainingSession extends BaseSession {
   }
 }
 
+// Zufällige Charaktere für die Menü-Demo (nur Grafik, nicht Teil der Simulation)
+function randomChars() {
+  const pick = () => CHARACTER_ORDER[Math.floor(Math.random() * CHARACTER_ORDER.length)];
+  return [pick(), pick()];
+}
+
 /** Zwei Computer-Kämpfer als Hintergrund fürs Hauptmenü. */
 export class DemoSession extends BaseSession {
   constructor() {
-    super(createMatch());
+    super(createMatch({ chars: randomChars() }));
     this.kind = 'demo';
     this.canPause = false;
     const seed = (Date.now() & 0xffff) + 1;
@@ -81,10 +87,10 @@ export class DemoSession extends BaseSession {
   }
   tick() {
     this.advance(this.p1.read(), this.p2.read());
-    if (this.state.phase === 'matchEnd' && this.state.phaseFrame > 240) this.restart();
+    if (this.state.phase === 'matchEnd' && this.state.phaseFrame > 240) this.restart({ chars: randomChars() });
     return true;
   }
   rematch() {
-    this.restart();
+    this.restart({ chars: randomChars() });
   }
 }

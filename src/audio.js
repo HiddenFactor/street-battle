@@ -151,6 +151,19 @@ export class Sound {
       case 'jump':
         this.tone({ f0: 260, f1: 520, dur: 0.09, vol: 0.08, pan });
         break;
+      case 'jump2':
+        this.tone({ f0: 420, f1: 900, dur: 0.1, vol: 0.08, pan });
+        this.hiss({ dur: 0.08, vol: 0.08, filter: 'highpass', f0: 2000, pan });
+        break;
+      case 'stomp':
+        this.tone({ f0: 90, f1: 32, dur: 0.45, vol: 0.75, pan });
+        this.hiss({ dur: 0.5, vol: 0.5, filter: 'lowpass', f0: 900, f1: 90, q: 0.7, pan });
+        this.tone({ type: 'square', f0: 60, f1: 40, dur: 0.12, vol: 0.12, pan });
+        break;
+      case 'dash':
+        this.hiss({ dur: 0.24, vol: 0.28, filter: 'bandpass', f0: 400, f1: 3200, q: 1.3, pan });
+        this.tone({ type: 'sawtooth', f0: 300, f1: 900, dur: 0.15, vol: 0.05, pan });
+        break;
       case 'land':
         this.hiss({ dur: 0.07, vol: 0.18, filter: 'lowpass', f0: 600, f1: 200, pan });
         break;
@@ -228,12 +241,15 @@ export class Sound {
         this.play('block', pan);
         break;
       case 'swing':
-        if (e.move !== 'special') this.play(e.move.startsWith('heavy') ? 'swingHeavy' : 'swingLight', pan);
+        if (e.move === 'dashKick') this.play('dash', pan);
+        else if (e.move !== 'special' && e.move !== 'stomp') this.play(e.move.startsWith('heavy') ? 'swingHeavy' : 'swingLight', pan);
         break;
       case 'special':
-        this.play('special', pan);
+        this.play(e.kind === 'wave' ? 'stomp' : 'special', pan);
         break;
       case 'jump':
+        this.play(e.double ? 'jump2' : 'jump', pan);
+        break;
       case 'land':
       case 'down':
       case 'clash':

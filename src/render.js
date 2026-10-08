@@ -7,8 +7,8 @@
 // Hier sind Zufall, Zeit und Trigonometrie erlaubt.
 // =====================================================================
 
-import { SUB, hurtboxesOf, pushboxWorld, hitboxOf, projectileBox } from './sim.js';
-import { FIGHTER, ROUND, LOOK, MOVES } from './config.js';
+import { SUB, hurtboxesOf, pushboxWorld, hitboxOf, projectileBox, charData, DEFAULT_CHAR } from './sim.js';
+import { ROUND, LOOK, CHARACTERS } from './config.js';
 import { poseFor, solvePose, blend } from './poses.js';
 
 export const VIEW_W = 960;
@@ -18,7 +18,7 @@ const HORIZON_Y = 400;        // hintere Kante der Straße
 const OUTLINE = '#120a16';
 const FONT = '"Arial Black", "Segoe UI Black", Impact, "Helvetica Neue", Arial, sans-serif';
 const TAU = Math.PI * 2;
-const KICKS = ['heavyStand', 'lightCrouch', 'heavyCrouch', 'lightAir', 'heavyAir'];
+const KICKS = ['heavyStand', 'lightCrouch', 'heavyCrouch', 'lightAir', 'heavyAir', 'dashKick'];
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -296,7 +296,8 @@ export class Renderer {
     this.lastAdv = null;
     this.annText = '';
     this.annStart = 0;
-    this.fx = [0, 1].map(() => ({ flash: 0, pose: null, trail: [], hpLag: FIGHTER.MAX_HP, hpShown: FIGHTER.MAX_HP, lagDelay: 0 }));
+    this.fx = [0, 1].map(() => ({ flash: 0, pose: null, trail: [], hpLag: 999, hpShown: 999, lagDelay: 0 }));
+    this.palettes = null; // Farben der beiden Kämpfer (aus dem letzten Bild, für Effekte)
     this.combo = [{ count: 0, t: -10 }, { count: 0, t: -10 }];
 
     this.sky = buildSky();
@@ -311,11 +312,10 @@ export class Renderer {
       { img: buildSign('24/7', '#7dff6b', 18), x: 860, y: 300, k: 0.1, seed: 3 },
     ];
     this.glows = [
-      buildGlow(...hexToRgb(LOOK.PLAYERS[0].glow), 1, 128), // Spieler 1
-      buildGlow(...hexToRgb(LOOK.PLAYERS[1].glow), 1, 128), // Spieler 2
-      buildGlow(255, 250, 230, 1, 128),  // weißer Kern
+      buildGlow(255, 250, 230, 1, 128),   // weißer Kern
       buildGlow(255, 210, 140, 0.9, 256), // Laterne
     ];
+    this.glowCache = new Map(); // Leuchten in Spielerfarben (siehe glowSprite)
   }
 
   resize(cssW, cssH, dpr) {
@@ -358,10 +358,20 @@ export class Renderer {
         this.shake = Math.max(this.shake, 2 * shakeMul);
         this.lastAdv = { value: e.adv, kind: 'Block', dmg: 0 };
         break;
-      case 'special':
-        this.addParticle({ type: 'ring', x: sx, y: sy, life: 0.25, size: 50, color: rgba(LOOK.PLAYERS[e.p].glow, 1) });
-        this.burst(sx, sy, 10, ['#ffffff', LOOK.PLAYERS[e.p].glow], 260, 'dot', amount);
+      case 'special': {
+        const glow = this.palettes ? this.palettes[e.p].glow : '#ffffff';
+        if (e.kind === 'wave') {
+          // Erdstoß: Staub, Gesteinsbrocken, kräftiges Wackeln
+          this.dust(sx, FLOOR_Y, 16, amount);
+          this.burst(sx, FLOOR_Y - 4, 14, ['#a8957d', '#8a7a68', glow], 380, 'dot', amount);
+          this.addParticle({ type: 'ring', x: sx, y: FLOOR_Y, life: 0.35, size: 90, color: rgba(glow, 1) });
+          this.shake = Math.max(this.shake, 7 * shakeMul);
+        } else {
+          this.addParticle({ type: 'ring', x: sx, y: sy, life: 0.25, size: 50, color: rgba(glow, 1) });
+          this.burst(sx, sy, 10, ['#ffffff', glow], 260, 'dot', amount);
+        }
         break;
+      }
       case 'clash':
         this.burst(sx, sy, 30, ['#fff', '#d8f0ff', '#ffd9a0'], 520, 'spark', amount);
         this.addParticle({ type: 'ring', x: sx, y: sy, life: 0.4, size: 120, color: 'rgba(255,255,255,1)' });
@@ -371,7 +381,12 @@ export class Renderer {
         this.burst(sx, sy, 8, ['#ffffff'], 120, 'dot', amount);
         break;
       case 'jump':
-        this.dust(sx, FLOOR_Y, 5, amount);
+        if (e.double) {
+          // Doppelsprung: Luftstoß unter den Füßen
+          this.addParticle({ type: 'ring', x: sx, y: FLOOR_Y - (e.y || 0), life: 0.25, size: 40, color: 'rgba(255,255,255,1)' });
+        } else {
+          this.dust(sx, FLOOR_Y, 5, amount);
+        }
         break;
       case 'land':
         this.dust(sx, FLOOR_Y, 8, amount);
@@ -386,7 +401,7 @@ export class Renderer {
         break;
       case 'round':
         for (const fx of this.fx) {
-          fx.hpLag = FIGHTER.MAX_HP;
+          fx.hpLag = 999; // wird auf das Maximum des Charakters begrenzt
           fx.trail = [];
         }
         this.particles = [];
@@ -438,6 +453,7 @@ export class Renderer {
     const dt = Math.min(0.05, (view.dt || 16) / 1000);
     this.time += dt;
     this.localPlayer = view.localPlayer;
+    if (state) this.palettes = [this.paletteFor(state, 0), this.paletteFor(state, 1)];
     this.updateParticles(dt);
     this.shake = Math.max(0, this.shake - dt * 40);
     this.flash = Math.max(0, this.flash - dt * 1.6);
@@ -567,7 +583,7 @@ export class Renderer {
       ctx.fillRect(hx - 9, 256, 18, 6);
       ctx.globalCompositeOperation = 'lighter';
       ctx.globalAlpha = 0.5 + Math.sin(this.time * 20 + lx) * 0.03;
-      ctx.drawImage(this.glows[3], hx - 128, 260 - 128);
+      ctx.drawImage(this.glows[1], hx - 128, 260 - 128);
       // Lichtkegel
       const cone = ctx.createLinearGradient(0, 262, 0, FLOOR_Y + 20);
       cone.addColorStop(0, 'rgba(255,214,150,0.22)');
@@ -608,10 +624,26 @@ export class Renderer {
   // -------------------------------------------------------------------
   // Kämpfer
   // -------------------------------------------------------------------
+  /** Farben eines Kämpfers. Gleicher Charakter auf beiden Seiten → Spieler 2 in Farbe 2. */
+  paletteFor(state, i) {
+    const f = state.fighters[i];
+    const def = CHARACTERS[f.char] || CHARACTERS[DEFAULT_CHAR];
+    const mirror = state.fighters[0].char === state.fighters[1].char;
+    return def.look.palettes[mirror && i === 1 ? 1 : 0];
+  }
+
+  /** Leucht-Sprite in einer Farbe (wird einmal erzeugt und gemerkt) */
+  glowSprite(color) {
+    if (!this.glowCache.has(color)) this.glowCache.set(color, buildGlow(...hexToRgb(color), 1, 128));
+    return this.glowCache.get(color);
+  }
+
   drawFighter(state, i, dt) {
     const f = state.fighters[i];
     const fx = this.fx[i];
-    const look = LOOK.PLAYERS[i];
+    const cd = charData(f);
+    const look = (CHARACTERS[f.char] || CHARACTERS[DEFAULT_CHAR]).look;
+    const pal = this.paletteFor(state, i);
     fx.flash = Math.max(0, fx.flash - dt);
 
     // Pose bestimmen und weich überblenden
@@ -620,7 +652,8 @@ export class Renderer {
     else fx.pose = blend(fx.pose, target, 1 - Math.exp(-dt * 22));
     const j = solvePose(fx.pose);
 
-    // Position auf dem Bildschirm
+    // Position auf dem Bildschirm (Körpergröße des Charakters eingerechnet)
+    const size = cd.size;
     let ox = f.x / SUB;
     const oy = FLOOR_Y - f.y / SUB;
     if (state.hitstop > 0 && fx.flash > 0) ox += Math.floor(this.time * 60) % 2 ? 2.5 : -2.5;
@@ -629,49 +662,72 @@ export class Renderer {
     const grounded = f.y === 0 && f.vy === 0 && f.state !== 'knockdown' && f.state !== 'ko' && f.state !== 'getup';
     if (grounded) lift = -Math.min(j.footF[1], j.footB[1]);
     const dir = f.facing;
-    const P = (pt) => [ox + dir * pt[0], oy - pt[1] - lift];
+    const P = (pt) => [ox + dir * pt[0] * size, oy - (pt[1] + lift) * size];
+
+    // Linienstärken je Körperbau
+    const k = {
+      limb: size * (look.build === 'heavy' ? 1.25 : look.build === 'slim' ? 0.85 : 1),
+      body: size * (look.build === 'heavy' ? 1.3 : look.build === 'slim' ? 0.85 : 1),
+      head: size * (look.build === 'heavy' ? 1.05 : 1),
+      size,
+    };
 
     const white = fx.flash > 0.05;
     const C = white
-      ? { gi: '#ffffff', giDark: '#f2f2f2', skin: '#ffffff', skinDark: '#eeeeee', band: '#ffffff', belt: '#ffffff', hair: '#ffffff' }
-      : { gi: look.gi, giDark: look.giDark, skin: look.skin, skinDark: shade(look.skin, 0.78), band: look.band, belt: look.belt, hair: look.hair };
+      ? { gi: '#ffffff', giDark: '#f2f2f2', pants: '#ffffff', skin: '#ffffff', skinDark: '#eeeeee', band: '#ffffff', belt: '#ffffff', hair: '#ffffff' }
+      : { ...pal, pants: pal.pants || pal.gi, skinDark: shade(pal.skin, 0.78) };
+    const pantsBack = white ? '#f2f2f2' : shade(C.pants, 0.62);
 
     const ctx = this.ctx;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
     // Leuchtspur der zuschlagenden Faust / des Fußes
-    if (f.state === 'attack' && f.move !== 'special' && !white && f.moveFrame >= MOVES[f.move].startup - 1) {
+    const m = f.state === 'attack' && f.move ? cd.moves[f.move] : null;
+    if (m && !m.projectile && !white && f.moveFrame >= m.startup - 1) {
       fx.trail.push({ p: P(KICKS.includes(f.move) ? j.footF : j.handF), t: this.time });
     }
     fx.trail = fx.trail.filter((t) => this.time - t.t < 0.1);
     if (fx.trail.length > 1) {
       ctx.globalCompositeOperation = 'lighter';
-      for (let k = 1; k < fx.trail.length; k++) {
-        const a = fx.trail[k - 1];
-        const b = fx.trail[k];
+      for (let n = 1; n < fx.trail.length; n++) {
+        const a = fx.trail[n - 1];
+        const b = fx.trail[n];
         const age = (this.time - b.t) / 0.1;
-        this.stroke2(a.p, b.p, 14 * (1 - age), `rgba(255,255,255,${0.35 * (1 - age)})`);
+        this.stroke2(a.p, b.p, 14 * size * (1 - age), `rgba(255,255,255,${0.35 * (1 - age)})`);
       }
       ctx.globalCompositeOperation = 'source-over';
     }
 
+    // Schal (Wiesel) weht hinter dem Körper
+    if (look.head === 'scarf') this.drawScarfTail(P, j, C, dir, f, i, k);
+
     // Reihenfolge: hinterer Arm, hinteres Bein, Körper, Kopf, vorderes Bein, vorderer Arm
-    this.drawArm(P, j.shoulder, j.elbowB, j.handB, C.giDark, C.skinDark);
-    this.drawLeg(P, j.hip, j.kneeB, j.footB, j.footAngleB, C.giDark, C.skinDark, dir);
-    this.drawTorso(P, j, C, dir);
-    this.drawHead(P, j, C, dir, f, i);
-    this.drawLeg(P, j.hip, j.kneeF, j.footF, j.footAngleF, C.gi, C.skin, dir);
-    this.drawArm(P, j.shoulder, j.elbowF, j.handF, C.gi, C.skin);
+    const armOpts = { sleeveless: look.torso === 'vest', wraps: look.torso === 'vest' };
+    this.drawArm(P, j.shoulder, j.elbowB, j.handB, C.giDark, C.skinDark, k, { ...armOpts, wrapColor: shade(C.band, 0.75) });
+    this.drawLeg(P, j.hip, j.kneeB, j.footB, j.footAngleB, pantsBack, C.skinDark, dir, k);
+    this.drawTorso(P, j, C, dir, k, look.torso);
+    this.drawHead(P, j, C, dir, f, i, k, look.head);
+    this.drawLeg(P, j.hip, j.kneeF, j.footF, j.footAngleF, C.pants, C.skin, dir, k);
+    this.drawArm(P, j.shoulder, j.elbowF, j.handF, C.gi, C.skin, k, { ...armOpts, wrapColor: C.band });
 
     // Aufladen des Energieballs in der Wurfhand
-    if (f.state === 'attack' && f.move === 'special' && f.moveFrame < MOVES.special.startup) {
+    if (m && m.projectile === 'ball' && f.moveFrame < m.startup) {
       const hand = P(j.handF);
-      const t = f.moveFrame / MOVES.special.startup;
+      const t = f.moveFrame / m.startup;
       ctx.globalCompositeOperation = 'lighter';
       ctx.globalAlpha = 0.4 + t * 0.6;
       const s = 30 + t * 50;
-      ctx.drawImage(this.glows[i], hand[0] - s / 2, hand[1] - s / 2, s, s);
+      ctx.drawImage(this.glowSprite(pal.glow), hand[0] - s / 2, hand[1] - s / 2, s, s);
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    // Erdstoß: Fuß glüht kurz vor dem Aufstampfen
+    if (m && m.projectile === 'wave' && f.moveFrame < m.startup && f.moveFrame > m.startup - 8) {
+      const foot = P(j.footF);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.7;
+      ctx.drawImage(this.glowSprite(pal.glow), foot[0] - 30, foot[1] - 30, 60, 60);
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = 'source-over';
     }
@@ -679,8 +735,8 @@ export class Renderer {
     // "DU"-Markierung (online)
     if (this.localPlayer === i && state.phase !== 'matchEnd') {
       const head = P(j.head);
-      const y = Math.min(head[1] - 34, oy - 200);
-      ctx.fillStyle = look.band;
+      const y = Math.min(head[1] - 34 * size, oy - 200 * size);
+      ctx.fillStyle = LOOK.PLAYERS[i].color;
       ctx.beginPath();
       ctx.moveTo(head[0] - 7, y);
       ctx.lineTo(head[0] + 7, y);
@@ -701,44 +757,57 @@ export class Renderer {
     ctx.stroke();
   }
 
-  drawArm(P, shoulder, elbow, hand, sleeve, skin) {
+  drawArm(P, shoulder, elbow, hand, sleeve, skin, k, opts = {}) {
     const s = P(shoulder);
     const e = P(elbow);
     const h = P(hand);
     const ctx = this.ctx;
-    this.stroke2(s, e, 17, OUTLINE);
-    this.stroke2(e, h, 14, OUTLINE);
-    this.stroke2(s, e, 12, sleeve);
-    this.stroke2(e, h, 9, skin);
-    // Ärmelende
-    this.stroke2(e, [e[0] + (h[0] - e[0]) * 0.18, e[1] + (h[1] - e[1]) * 0.18], 12, sleeve);
+    const w = k.limb;
+    this.stroke2(s, e, 17 * w, OUTLINE);
+    this.stroke2(e, h, 14 * w, OUTLINE);
+    this.stroke2(s, e, 12 * w, opts.sleeveless ? skin : sleeve);
+    this.stroke2(e, h, 9 * w, skin);
+    if (opts.sleeveless) {
+      // Westen-Schulter
+      this.stroke2(s, [s[0] + (e[0] - s[0]) * 0.22, s[1] + (e[1] - s[1]) * 0.22], 13 * w, sleeve);
+    } else {
+      // Ärmelende
+      this.stroke2(e, [e[0] + (h[0] - e[0]) * 0.18, e[1] + (h[1] - e[1]) * 0.18], 12 * w, sleeve);
+    }
+    if (opts.wraps) {
+      // Bandagen am Handgelenk
+      const a = [e[0] + (h[0] - e[0]) * 0.55, e[1] + (h[1] - e[1]) * 0.55];
+      this.stroke2(a, [e[0] + (h[0] - e[0]) * 0.85, e[1] + (h[1] - e[1]) * 0.85], 10 * w, opts.wrapColor);
+    }
     // Faust
     ctx.fillStyle = OUTLINE;
     ctx.beginPath();
-    ctx.arc(h[0], h[1], 8.5, 0, TAU);
+    ctx.arc(h[0], h[1], 8.5 * w, 0, TAU);
     ctx.fill();
-    ctx.fillStyle = skin;
+    ctx.fillStyle = opts.wraps ? opts.wrapColor : skin;
     ctx.beginPath();
-    ctx.arc(h[0], h[1], 6, 0, TAU);
+    ctx.arc(h[0], h[1], 6 * w, 0, TAU);
     ctx.fill();
   }
 
-  drawLeg(P, hip, knee, foot, footAngle, pants, skin, dir) {
+  drawLeg(P, hip, knee, foot, footAngle, pants, skin, dir, k) {
     const hp = P(hip);
-    const k = P(knee);
+    const kn = P(knee);
     const f = P(foot);
-    this.stroke2(hp, k, 21, OUTLINE);
-    this.stroke2(k, f, 18, OUTLINE);
-    this.stroke2(hp, k, 16, pants);
-    this.stroke2(k, f, 13, pants);
+    const w = k.limb;
+    this.stroke2(hp, kn, 21 * w, OUTLINE);
+    this.stroke2(kn, f, 18 * w, OUTLINE);
+    this.stroke2(hp, kn, 16 * w, pants);
+    this.stroke2(kn, f, 13 * w, pants);
     // Fuß (zeigt nach vorne)
     const a = ((footAngle + 90) * Math.PI) / 180;
-    const tip = [f[0] + dir * Math.sin(a) * 13, f[1] + Math.cos(a) * 13];
-    this.stroke2(f, tip, 11, OUTLINE);
-    this.stroke2(f, tip, 7, skin);
+    const len = 13 * k.size;
+    const tip = [f[0] + dir * Math.sin(a) * len, f[1] + Math.cos(a) * len];
+    this.stroke2(f, tip, 11 * w, OUTLINE);
+    this.stroke2(f, tip, 7 * w, skin);
   }
 
-  drawTorso(P, j, C, dir) {
+  drawTorso(P, j, C, dir, k, type) {
     const ctx = this.ctx;
     const hip = P(j.hip);
     const top = P(j.neck);
@@ -746,53 +815,89 @@ export class Renderer {
     const nx = Math.cos(ang + Math.PI / 2);
     const ny = Math.sin(ang + Math.PI / 2);
     const along = (t) => [hip[0] + (top[0] - hip[0]) * t, hip[1] + (top[1] - hip[1]) * t];
+    const b = k.body;
     const quad = (wHip, wTop, t0, t1) => {
       const a = along(t0);
-      const b = along(t1);
+      const c = along(t1);
       ctx.beginPath();
       ctx.moveTo(a[0] + nx * wHip, a[1] + ny * wHip);
       ctx.lineTo(a[0] - nx * wHip, a[1] - ny * wHip);
-      ctx.lineTo(b[0] - nx * wTop, b[1] - ny * wTop);
-      ctx.lineTo(b[0] + nx * wTop, b[1] + ny * wTop);
+      ctx.lineTo(c[0] - nx * wTop, c[1] - ny * wTop);
+      ctx.lineTo(c[0] + nx * wTop, c[1] + ny * wTop);
       ctx.closePath();
     };
     ctx.fillStyle = OUTLINE;
     ctx.strokeStyle = OUTLINE;
-    ctx.lineWidth = 5;
-    quad(17, 22, -0.05, 1.02);
+    ctx.lineWidth = 5 * k.size;
+    quad(17 * b, 22 * b, -0.05, 1.02);
     ctx.fill();
     ctx.stroke();
+
+    if (type === 'vest') {
+      // Fels: offene Weste über nackter Brust, breiter Gürtel
+      ctx.fillStyle = C.skin;
+      quad(14 * b, 19 * b, -0.02, 0.98);
+      ctx.fill();
+      ctx.fillStyle = C.gi;
+      for (const side of [1, -1]) {
+        const a = along(-0.02);
+        const c = along(0.98);
+        ctx.beginPath();
+        ctx.moveTo(a[0] + nx * 14 * b * side, a[1] + ny * 14 * b * side);
+        ctx.lineTo(a[0] + nx * 5 * b * side, a[1] + ny * 5 * b * side);
+        ctx.lineTo(c[0] + nx * 8 * b * side, c[1] + ny * 8 * b * side);
+        ctx.lineTo(c[0] + nx * 19 * b * side, c[1] + ny * 19 * b * side);
+        ctx.closePath();
+        ctx.fill();
+      }
+      const belt = along(0.08);
+      this.stroke2([belt[0] + nx * 16 * b, belt[1] + ny * 16 * b], [belt[0] - nx * 16 * b, belt[1] - ny * 16 * b], 10 * k.size, C.belt);
+      ctx.fillStyle = C.band;
+      ctx.fillRect(belt[0] - 4 * k.size, belt[1] - 4 * k.size, 8 * k.size, 8 * k.size); // Gürtelschnalle
+      return;
+    }
+
     ctx.fillStyle = C.gi;
-    quad(14, 19, -0.02, 0.98);
+    quad(14 * b, 19 * b, -0.02, 0.98);
     ctx.fill();
-    // Ausschnitt (Haut) vorne oben
+
+    if (type === 'jacket') {
+      // Wiesel: Jacke mit Reißverschluss und Bund
+      const z0 = along(0.05);
+      const z1 = along(0.92);
+      this.stroke2(z0, z1, 2 * k.size, 'rgba(255,255,255,0.55)');
+      const hem = along(0.06);
+      this.stroke2([hem[0] + nx * 14 * b, hem[1] + ny * 14 * b], [hem[0] - nx * 14 * b, hem[1] - ny * 14 * b], 5 * k.size, C.giDark);
+      return;
+    }
+
+    // Funke: Kampfanzug mit Ausschnitt und Gürtel
     const neckIn = along(0.94);
     const vTip = along(0.55);
     ctx.fillStyle = C.skin;
     ctx.beginPath();
-    ctx.moveTo(neckIn[0] + nx * 9, neckIn[1] + ny * 9);
-    ctx.lineTo(neckIn[0] - nx * 9, neckIn[1] - ny * 9);
+    ctx.moveTo(neckIn[0] + nx * 9 * b, neckIn[1] + ny * 9 * b);
+    ctx.lineTo(neckIn[0] - nx * 9 * b, neckIn[1] - ny * 9 * b);
     ctx.lineTo(vTip[0], vTip[1]);
     ctx.closePath();
     ctx.fill();
-    // Kragenlinie
     const lap = along(0.1);
     this.stroke2(vTip, [lap[0] - nx * 6 * dir, lap[1] - ny * 6 * dir], 2, 'rgba(0,0,0,0.25)');
-    // Gürtel
     const b1 = along(0.1);
-    this.stroke2([b1[0] + nx * 15, b1[1] + ny * 15], [b1[0] - nx * 15, b1[1] - ny * 15], 7, C.belt);
+    this.stroke2([b1[0] + nx * 15 * b, b1[1] + ny * 15 * b], [b1[0] - nx * 15 * b, b1[1] - ny * 15 * b], 7 * k.size, C.belt);
     const knot = [b1[0] - dir * 3, b1[1]];
-    this.stroke2(knot, [knot[0] - dir * 6, knot[1] + 12], 4, C.belt);
-    this.stroke2(knot, [knot[0] + dir * 3, knot[1] + 13], 4, C.belt);
+    this.stroke2(knot, [knot[0] - dir * 6, knot[1] + 12 * k.size], 4 * k.size, C.belt);
+    this.stroke2(knot, [knot[0] + dir * 3, knot[1] + 13 * k.size], 4 * k.size, C.belt);
   }
 
-  drawHead(P, j, C, dir, f, i) {
+  drawHead(P, j, C, dir, f, i, k, type) {
     const ctx = this.ctx;
     const h = P(j.head);
     const n = P(j.neck);
-    this.stroke2(n, h, 13, OUTLINE);
-    this.stroke2(n, h, 8, C.skin);
-    const r = 15;
+    const w = k.head;
+    this.stroke2(n, h, 13 * w, OUTLINE);
+    this.stroke2(n, h, 8 * w, C.skin);
+    const r = 15 * w;
     ctx.fillStyle = OUTLINE;
     ctx.beginPath();
     ctx.arc(h[0], h[1], r + 2.5, 0, TAU);
@@ -806,69 +911,176 @@ export class Renderer {
     const a = (j.headAngle * Math.PI) / 180;
     const up = [Math.sin(a) * dir, -Math.cos(a)];
     const fwd = [Math.cos(a) * dir, Math.sin(a)];
-    // Haare: Kappe oben und hinten
-    ctx.fillStyle = C.hair;
-    ctx.beginPath();
     const base = Math.atan2(up[1], up[0]);
-    ctx.arc(h[0], h[1], r + 1.5, base + 0.45 * dir, base - 1.7 * dir, dir > 0);
-    ctx.lineTo(h[0] - fwd[0] * 4 + up[0] * 2, h[1] - fwd[1] * 4 + up[1] * 2);
-    ctx.closePath();
-    ctx.fill();
-    // Stirnband
-    const bc = [h[0] + up[0] * 5, h[1] + up[1] * 5];
-    this.stroke2([bc[0] - fwd[0] * 15, bc[1] - fwd[1] * 15], [bc[0] + fwd[0] * 15, bc[1] + fwd[1] * 15], 6, C.band);
-    // wehende Bänder hinten
-    const knot = [bc[0] - fwd[0] * 14, bc[1] - fwd[1] * 14];
-    const wave = Math.sin(this.time * 12 + i * 2) * 5;
-    const lag = clamp(Math.abs(f.vx) / SUB, 0, 6);
-    ctx.strokeStyle = C.band;
-    ctx.lineWidth = 4;
-    for (const off of [0, 7]) {
+    const at = (fu, ff) => [h[0] + up[0] * fu + fwd[0] * ff, h[1] + up[1] * fu + fwd[1] * ff];
+
+    if (type === 'bald') {
+      // Fels: Glatze, kräftiger Bart, buschige Augenbraue
+      // Bart: vorne unten am Kinn bis zum Ohr
+      ctx.fillStyle = C.hair;
       ctx.beginPath();
-      ctx.moveTo(knot[0], knot[1]);
-      ctx.quadraticCurveTo(
-        knot[0] - dir * (14 + lag), knot[1] + 3 + wave * 0.5 + off * 0.5,
-        knot[0] - dir * (28 + lag * 2), knot[1] + 6 + wave + off,
-      );
-      ctx.stroke();
+      ctx.arc(h[0], h[1], r + 1.5, base + Math.PI * 0.42 * dir, base + Math.PI * 0.98 * dir, dir < 0);
+      const ear = at(-r * 0.15, -r * 0.2);
+      ctx.lineTo(ear[0], ear[1]);
+      const mouth = at(-r * 0.25, r * 0.75);
+      ctx.lineTo(mouth[0], mouth[1]);
+      ctx.closePath();
+      ctx.fill();
+      // Glanzpunkt auf der Glatze
+      const shine = at(r * 0.55, -r * 0.1);
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.beginPath();
+      ctx.arc(shine[0], shine[1], 3 * w, 0, TAU);
+      ctx.fill();
+      const brow = at(r * 0.28, r * 0.5);
+      this.stroke2([brow[0] - fwd[0] * 4, brow[1] - fwd[1] * 4], [brow[0] + fwd[0] * 5, brow[1] + fwd[1] * 5], 3.5 * w, C.hair);
+    } else if (type === 'scarf') {
+      // Wiesel: Stachelhaare
+      ctx.fillStyle = C.hair;
+      ctx.beginPath();
+      ctx.arc(h[0], h[1], r + 1.5, base + 0.35 * dir, base - 1.8 * dir, dir > 0);
+      ctx.closePath();
+      ctx.fill();
+      for (const [ang, len] of [[-0.2, 1.75], [-0.75, 1.65], [-1.3, 1.55], [0.3, 1.5]]) {
+        const d1 = base - ang * dir;
+        const tip = [h[0] + Math.cos(d1 - 0.35 * dir) * r * len, h[1] + Math.sin(d1 - 0.35 * dir) * r * len];
+        ctx.beginPath();
+        ctx.moveTo(h[0] + Math.cos(d1 - 0.3) * r * 0.9, h[1] + Math.sin(d1 - 0.3) * r * 0.9);
+        ctx.lineTo(tip[0], tip[1]);
+        ctx.lineTo(h[0] + Math.cos(d1 + 0.3) * r * 0.9, h[1] + Math.sin(d1 + 0.3) * r * 0.9);
+        ctx.closePath();
+        ctx.fill();
+      }
+      // Schal um den Hals
+      this.stroke2([n[0] - fwd[0] * 8 * w, n[1] - fwd[1] * 8 * w + 2], [n[0] + fwd[0] * 9 * w, n[1] + fwd[1] * 9 * w + 2], 9 * w, OUTLINE);
+      this.stroke2([n[0] - fwd[0] * 7 * w, n[1] - fwd[1] * 7 * w + 2], [n[0] + fwd[0] * 8 * w, n[1] + fwd[1] * 8 * w + 2], 6 * w, C.band);
+    } else {
+      // Funke: Haare und Stirnband mit wehenden Bändern
+      ctx.fillStyle = C.hair;
+      ctx.beginPath();
+      ctx.arc(h[0], h[1], r + 1.5, base + 0.45 * dir, base - 1.7 * dir, dir > 0);
+      ctx.lineTo(h[0] - fwd[0] * 4 + up[0] * 2, h[1] - fwd[1] * 4 + up[1] * 2);
+      ctx.closePath();
+      ctx.fill();
+      const bc = at(5 * w, 0);
+      this.stroke2([bc[0] - fwd[0] * r, bc[1] - fwd[1] * r], [bc[0] + fwd[0] * r, bc[1] + fwd[1] * r], 6 * w, C.band);
+      const knot = [bc[0] - fwd[0] * 14 * w, bc[1] - fwd[1] * 14 * w];
+      const wave = Math.sin(this.time * 12 + i * 2) * 5;
+      const lag = clamp(Math.abs(f.vx) / SUB, 0, 6);
+      ctx.strokeStyle = C.band;
+      ctx.lineWidth = 4 * w;
+      for (const off of [0, 7]) {
+        ctx.beginPath();
+        ctx.moveTo(knot[0], knot[1]);
+        ctx.quadraticCurveTo(
+          knot[0] - dir * (14 + lag), knot[1] + 3 + wave * 0.5 + off * 0.5,
+          knot[0] - dir * (28 + lag * 2), knot[1] + 6 + wave + off,
+        );
+        ctx.stroke();
+      }
     }
     // Auge
-    const eye = [h[0] + fwd[0] * 8 - up[0] * 1, h[1] + fwd[1] * 8 - up[1] * 1];
+    const eye = at(-1, 8 * w);
     ctx.fillStyle = OUTLINE;
     ctx.beginPath();
-    ctx.ellipse(eye[0], eye[1], 2.4, 3, 0, 0, TAU);
+    ctx.ellipse(eye[0], eye[1], 2.4 * w, 3 * w, 0, 0, TAU);
     ctx.fill();
+  }
+
+  // Wiesels langes Schal-Ende, weht im Wind hinter dem Körper
+  drawScarfTail(P, j, C, dir, f, i, k) {
+    const ctx = this.ctx;
+    const n = P(j.neck);
+    const speed = clamp(Math.abs(f.vx) / SUB, 0, 8);
+    const wave = Math.sin(this.time * 10 + i) * 6;
+    const len = (38 + speed * 4) * k.size;
+    const end = [n[0] - dir * len, n[1] + 10 + wave];
+    const mid = [n[0] - dir * len * 0.5, n[1] - 4 + wave * 0.4];
+    for (const [w, color] of [[9 * k.size, OUTLINE], [6 * k.size, C.band]]) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      ctx.moveTo(n[0], n[1] + 2);
+      ctx.quadraticCurveTo(mid[0], mid[1], end[0], end[1]);
+      ctx.stroke();
+    }
   }
 
   drawProjectiles(state, dt) {
     const ctx = this.ctx;
     for (const p of state.projectiles) {
+      const glow = this.paletteFor(state, p.owner).glow;
       const x = p.x / SUB;
-      const y = FLOOR_Y - (p.y + p.h / 2) / SUB;
       const dirX = Math.sign(p.vx);
+      if (p.kind === 'wave') {
+        this.drawWave(p, x, dirX, glow, dt);
+        continue;
+      }
+      const y = FLOOR_Y - (p.y + p.h / 2) / SUB;
       // Schweif
       if (Math.random() < dt * 60) {
         this.addParticle({
           type: 'dot', x: x - dirX * 14 + rand(-6, 6), y: y + rand(-10, 10),
           vx: -dirX * rand(40, 120), vy: rand(-30, 30), life: rand(0.2, 0.4), size: rand(3, 7),
-          color: LOOK.PLAYERS[p.owner].glow, drag: 2, grav: 0,
+          color: glow, drag: 2, grav: 0,
         });
       }
       ctx.globalCompositeOperation = 'lighter';
       const pulse = 1 + Math.sin(this.time * 30) * 0.08;
       ctx.globalAlpha = 0.9;
-      ctx.drawImage(this.glows[p.owner], x - 64 * pulse, y - 64 * pulse, 128 * pulse, 128 * pulse);
+      ctx.drawImage(this.glowSprite(glow), x - 64 * pulse, y - 64 * pulse, 128 * pulse, 128 * pulse);
       ctx.globalAlpha = 1;
-      ctx.drawImage(this.glows[2], x - 22, y - 22, 44, 44);
+      ctx.drawImage(this.glows[0], x - 22, y - 22, 44, 44);
       ctx.globalCompositeOperation = 'source-over';
       // Energie-Ringe
       ctx.strokeStyle = 'rgba(255,255,255,0.8)';
       ctx.lineWidth = 2;
-      for (let k = 0; k < 2; k++) {
+      for (let n = 0; n < 2; n++) {
         ctx.beginPath();
-        ctx.ellipse(x, y, 20, 9, this.time * 8 * (k ? -1 : 1) + k, 0, TAU);
+        ctx.ellipse(x, y, 20, 9, this.time * 8 * (n ? -1 : 1) + n, 0, TAU);
         ctx.stroke();
       }
+    }
+  }
+
+  // Fels' Druckwelle: Gesteinsspitzen und Staub über den Boden
+  drawWave(p, x, dirX, glow, dt) {
+    const ctx = this.ctx;
+    const w = p.w / SUB;
+    const ground = FLOOR_Y + 2;
+    // Staub hinter der Welle
+    if (Math.random() < dt * 90) {
+      this.addParticle({
+        type: 'smoke', x: x - dirX * w * 0.4 + rand(-8, 8), y: ground - rand(0, 8),
+        vx: -dirX * rand(20, 80), vy: rand(-60, -20), life: rand(0.3, 0.6), size: rand(6, 12),
+        color: 'rgba(200,180,150,1)', drag: 3, grav: 0,
+      });
+    }
+    // Leuchten am Boden
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.75;
+    ctx.drawImage(this.glowSprite(glow), x - w * 0.9, ground - 34, w * 1.8, 60);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+    // Gesteinsspitzen (vorne höher)
+    for (let n = 0; n < 5; n++) {
+      const t = n / 4;
+      const sx = x - dirX * w * 0.5 + dirX * w * t;
+      const hgt = (10 + 22 * t) * (0.8 + 0.25 * Math.sin(this.time * 25 + n * 1.7));
+      ctx.fillStyle = OUTLINE;
+      ctx.beginPath();
+      ctx.moveTo(sx - 9, ground);
+      ctx.lineTo(sx + dirX * 2, ground - hgt - 3);
+      ctx.lineTo(sx + 9, ground);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = n % 2 ? '#8a7a68' : '#a8957d';
+      ctx.beginPath();
+      ctx.moveTo(sx - 6, ground);
+      ctx.lineTo(sx + dirX * 2, ground - hgt);
+      ctx.lineTo(sx + 6, ground);
+      ctx.closePath();
+      ctx.fill();
     }
   }
 
@@ -984,13 +1196,17 @@ export class Renderer {
     for (let i = 0; i < 2; i++) {
       const f = state.fighters[i];
       const fx = this.fx[i];
-      const look = LOOK.PLAYERS[i];
+      const player = LOOK.PLAYERS[i];
+      const pal = this.paletteFor(state, i);
+      const cd = charData(f);
+      const maxHp = cd.maxHp;
       // Nachlauf des Lebensbalkens
       if (f.hp < fx.hpShown) fx.lagDelay = 0.45;
       fx.hpShown = f.hp;
       if (fx.lagDelay > 0) fx.lagDelay -= dt;
       else fx.hpLag = Math.max(f.hp, fx.hpLag - dt * 40);
       if (fx.hpLag < f.hp) fx.hpLag = f.hp;
+      if (fx.hpLag > maxHp) fx.hpLag = maxHp;
 
       const x0 = i === 0 ? 24 : VIEW_W - 24 - barW;
       const skew = 12;
@@ -1018,9 +1234,9 @@ export class Renderer {
       shape(barW);
       ctx.fill();
       ctx.fillStyle = '#ff3b3b';
-      shape((barW * fx.hpLag) / FIGHTER.MAX_HP);
+      shape((barW * fx.hpLag) / maxHp);
       ctx.fill();
-      const low = f.hp <= FIGHTER.MAX_HP * 0.25;
+      const low = f.hp <= maxHp * 0.25;
       const g = ctx.createLinearGradient(0, top, 0, top + barH);
       if (low && Math.floor(this.time * 6) % 2) {
         g.addColorStop(0, '#ffb0b0');
@@ -1031,7 +1247,7 @@ export class Renderer {
         g.addColorStop(1, '#f08a12');
       }
       ctx.fillStyle = g;
-      shape((barW * Math.max(0, f.hp)) / FIGHTER.MAX_HP);
+      shape((barW * Math.max(0, f.hp)) / maxHp);
       ctx.fill();
       ctx.strokeStyle = '#fff';
       ctx.lineWidth = 2;
@@ -1039,17 +1255,18 @@ export class Renderer {
       ctx.stroke();
 
       // Name
-      const name = view.localPlayer === i ? 'DU' : view.localPlayer >= 0 ? 'GEGNER' : look.name;
-      this.text(name, i === 0 ? x0 + 4 : x0 + barW - 4, top + barH + 14, 15, { align: i === 0 ? 'left' : 'right', fill: look.band, stroke: OUTLINE, line: 4 });
+      const who = view.localPlayer === i ? 'DU' : view.localPlayer >= 0 ? 'GEGNER' : `P${i + 1}`;
+      const name = `${who} · ${(CHARACTERS[f.char] || CHARACTERS[DEFAULT_CHAR]).name}`;
+      this.text(name, i === 0 ? x0 + 4 : x0 + barW - 4, top + barH + 14, 15, { align: i === 0 ? 'left' : 'right', fill: player.color, stroke: OUTLINE, line: 4 });
 
       // Special-Cooldown
-      const ready = 1 - f.cooldown / MOVES.special.cooldown;
+      const ready = 1 - f.cooldown / (cd.moves[cd.special].cooldown || 1);
       const cw = 120;
       const cx = i === 0 ? x0 + 110 : x0 + barW - 110 - cw;
       const cy = top + barH + 9;
       ctx.fillStyle = 'rgba(0,0,0,0.55)';
       ctx.fillRect(cx, cy, cw, 8);
-      ctx.fillStyle = ready >= 1 ? look.glow : 'rgba(180,180,220,0.6)';
+      ctx.fillStyle = ready >= 1 ? pal.glow : 'rgba(180,180,220,0.6)';
       const fillW = cw * ready;
       ctx.fillRect(i === 0 ? cx : cx + cw - fillW, cy, fillW, 8);
       if (ready >= 1) {
@@ -1196,7 +1413,7 @@ export class Renderer {
         if (w < 0) txt = 'UNENTSCHIEDEN';
         else if (view.localPlayer >= 0) txt = w === view.localPlayer ? 'RUNDE GEWONNEN!' : 'RUNDE VERLOREN';
         else txt = `${LOOK.PLAYERS[w].name} GEWINNT`;
-        color = w < 0 ? '#fff' : LOOK.PLAYERS[w].band;
+        color = w < 0 ? '#fff' : LOOK.PLAYERS[w].color;
         size = 46;
         age = pf - 100;
         dur = ROUND.END_FRAMES - 100;

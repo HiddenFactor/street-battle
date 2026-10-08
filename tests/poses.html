@@ -14,17 +14,19 @@
   <canvas id="c" width="960" height="540"></canvas>
   <script type="module">
     import { Renderer, FLOOR_Y } from '../src/render.js';
-    import { SUB } from '../src/sim.js';
+    import { SUB, charData } from '../src/sim.js';
     import { MOVES } from '../src/config.js';
 
+    // ?char=fels oder ?char=wiesel zeigt einen anderen Charakter
+    const charId = new URLSearchParams(location.search).get('char') || 'funke';
     const canvas = document.getElementById('c');
     const r = new Renderer(canvas);
     r.resize(960, 540, 1.5);
     const ctx = r.ctx;
 
-    const base = { x: 0, y: 0, vx: 0, vy: 0, facing: 1, hp: 100, state: 'idle', stateFrame: 0, move: null, moveFrame: 0, hasHit: false,
+    const base = { char: charId, x: 0, y: 0, vx: 0, vy: 0, facing: 1, hp: 100, state: 'idle', stateFrame: 0, move: null, moveFrame: 0, hasHit: false,
       stun: 0, cooldown: 0, crouching: false, guarding: false, jumpDir: 0, invuln: 0, airAttackUsed: false, combo: 0 };
-    const atk = (move, extra = {}) => ({ state: 'attack', move, moveFrame: MOVES[move].startup, crouching: !!MOVES[move].crouch, ...extra });
+    const atk = (move, extra = {}) => ({ state: 'attack', move, moveFrame: charData(charId).moves[move].startup, crouching: !!MOVES[move].crouch, ...extra });
     const cells = [
       ['idle', {}],
       ['walk', { state: 'walk', stateFrame: 9, vx: 300 }],
@@ -39,7 +41,7 @@
       ['heavyCrouch', atk('heavyCrouch')],
       ['lightAir', atk('lightAir', { y: 9000 })],
       ['heavyAir', atk('heavyAir', { y: 9000 })],
-      ['special', atk('special')],
+      [charId === 'fels' ? 'stomp' : charId === 'wiesel' ? 'dashKick' : 'special', atk(charId === 'fels' ? 'stomp' : charId === 'wiesel' ? 'dashKick' : 'special')],
       ['hitstun', { state: 'hitstun', stun: 10 }],
       ['block', { state: 'blockstun' }],
       ['block geduckt', { state: 'blockstun', crouching: true }],
@@ -60,7 +62,7 @@
         const cx = 70 + col * 137;
         const floor = 168 + row * 178;
         const f = { ...base, ...props };
-        const state = { hitstop: 0, phase: 'fight', fighters: [f, { ...base, x: 99999 }], projectiles: [] };
+        const state = { hitstop: 0, phase: 'fight', fighters: [f, { ...base, char: 'none', x: 99999 }], projectiles: [] };
         ctx.save();
         ctx.translate(cx, floor);
         ctx.scale(0.78, 0.78);

@@ -462,7 +462,7 @@ function think(s, i, input) {
     f.jumpDir = d.h !== 0 ? d.h : f.facing;
     f.stateFrame = 0;
     f.airAttackUsed = false;
-    s.events.push({ type: 'jump', p: i, x: toPx(f.x), double: true });
+    s.events.push({ type: 'jump', p: i, x: toPx(f.x), y: toPx(f.y), double: true });
     return;
   }
 

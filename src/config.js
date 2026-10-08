@@ -267,8 +267,8 @@ export const CHARACTERS = {
     look: {
       build: 'slim', head: 'scarf', torso: 'jacket',
       palettes: [
-        { gi: '#d6336c', giDark: '#7d1a3e', pants: '#2b2135', belt: '#1a1420', band: '#f4f4f4', skin: '#f2c6a0', hair: '#2b2b40', glow: '#ff6fae' },
-        { gi: '#6b6f78', giDark: '#3a3d44', pants: '#1d1f24', belt: '#111216', band: '#ffcc33', skin: '#c99068', hair: '#5a3010', glow: '#ffd75e' },
+        { gi: '#d6336c', giDark: '#7d1a3e', pants: '#4a3d63', belt: '#1a1420', band: '#f4f4f4', skin: '#f2c6a0', hair: '#2b2b40', glow: '#ff6fae' },
+        { gi: '#6b6f78', giDark: '#3a3d44', pants: '#3b4250', belt: '#111216', band: '#ffcc33', skin: '#c99068', hair: '#5a3010', glow: '#ffd75e' },
       ],
     },
   },
