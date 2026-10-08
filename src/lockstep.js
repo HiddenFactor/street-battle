@@ -267,7 +267,10 @@ export class Lockstep {
   }
 
   checkRematch() {
-    if (this.isHost && this.rematchLocal && this.rematchRemote) this.hostStart(createMatch(), this.delay, 'rematch');
+    if (this.isHost && this.rematchLocal && this.rematchRemote) {
+      // Rematch mit denselben Charakteren
+      this.hostStart(createMatch({ chars: this.state.chars }), this.delay, 'rematch');
+    }
   }
 
   takeEvents() {

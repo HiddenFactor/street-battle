@@ -20,7 +20,7 @@
 // Spielwerte. Das Spiel prüft das beim Verbinden.
 // =====================================================================
 
-export const GAME_VERSION = '1.3.0';
+export const GAME_VERSION = '2.0.0';
 
 // ---------------------------------------------------------------------
 // Arena
@@ -32,8 +32,11 @@ export const STAGE = {
 };
 
 // ---------------------------------------------------------------------
-// Kämpfer (beide sind gleich stark)
+// Kämpfer – Grundwerte
 // ---------------------------------------------------------------------
+// Diese Werte gelten für alle Charaktere. Ein Charakter kann einzelne
+// davon in CHARACTERS (weiter unten) überschreiben. Funke benutzt sie
+// unverändert.
 export const FIGHTER = {
   MAX_HP: 100,           // Lebenspunkte
   WALK_FORWARD: 3.4,     // Laufen nach vorne (px/F)
@@ -134,9 +137,11 @@ export const MOVES = {
     hitbox: { x: 56, y: 8, w: 72, h: 44 },
     hurt: null,
   },
-  // Das Special: ein Energieball (Projektil)
+  // ----- Specials (jeder Charakter hat eins, siehe CHARACTERS) -----
+  // Funke: ein Energieball (Projektil)
   special: {
     name: 'Energieball',
+    projectile: 'ball',   // Art des Geschosses (Aussehen)
     startup: 13, active: 1, recovery: 24,
     cooldown: 120,        // Frames, bis der nächste Ball möglich ist (120 = 2 Sekunden)
     speed: 6.5,           // Flugtempo (px/F)
@@ -146,7 +151,131 @@ export const MOVES = {
     ball: { x: 72, y: 92, w: 44, h: 36 },   // Größe und Startpunkt des Balls
     hurt: { x: 40, y: 96, w: 40, h: 26 },
   },
+  // Fels: Erdstoß – stampft auf, eine Druckwelle läuft über den Boden.
+  // Sie ist "tief": nur geduckt blockbar – oder man springt darüber.
+  stomp: {
+    name: 'Erdstoß',
+    projectile: 'wave',
+    startup: 18, active: 1, recovery: 26,
+    cooldown: 150,
+    speed: 5.5,
+    lifetime: 120,
+    damage: 12, chip: 2, hitstun: 22, blockstun: 16, hitstop: 10,
+    knockback: 6, blockPush: 5, level: 'low',
+    ball: { x: 64, y: 0, w: 72, h: 30 },
+    hurt: { x: 30, y: 0, w: 46, h: 30 },
+  },
+  // Wiesel: Blitztritt – sprintet mit einem Tritt nach vorn und wirft um.
+  // Geblockt steht man lange ungeschützt da (bestrafbar).
+  dashKick: {
+    name: 'Blitztritt',
+    startup: 6, active: 12, recovery: 20,
+    cooldown: 75,
+    dashSpeed: 9,         // Tempo während des Tritts (px/F)
+    damage: 9, chip: 0, hitstun: 0, blockstun: 12, hitstop: 9,
+    knockback: 5, blockPush: 6, level: 'mid', knockdown: true,
+    hitbox: { x: 62, y: 70, w: 70, h: 40 },
+    hurt: { x: 44, y: 70, w: 60, h: 34 },
+  },
 };
+
+// ---------------------------------------------------------------------
+// Charaktere
+// ---------------------------------------------------------------------
+// Jeder Charakter benutzt die Grundwerte aus FIGHTER und MOVES und legt
+// hier nur seine Abweichungen fest:
+//   hp            Lebenspunkte
+//   size          Körpergröße (1 = normal). Wirkt auf Grafik UND alle Boxen.
+//   walkForward / walkBack / jumpVelocity / jumpForward / airControl / airMaxSpeed
+//                 wie in FIGHTER (fehlt ein Wert, gilt der Grundwert)
+//   airJumps      Sprünge in der Luft (1 = Doppelsprung), airJumpVelocity = deren Kraft
+//   damageScale   Schaden aller Angriffe in Prozent (125 = 25 % mehr)
+//   special       welches Special (Schlüssel aus MOVES)
+//   moves         einzelne Angriffswerte ändern, z. B. { lightStand: { startup: 3 } }
+//   stats         nur für den Auswahl-Bildschirm (1 bis 5 Balken)
+//   look          Aussehen; palettes[1] ist die zweite Farbe, wenn beide
+//                 Spieler denselben Charakter wählen
+export const CHARACTERS = {
+  funke: {
+    name: 'FUNKE',
+    role: 'Allrounder',
+    info: 'Ausgewogen in allem. Hält Gegner mit dem Energieball auf Abstand.',
+    hp: 100,
+    size: 1,
+    special: 'special',
+    moves: {},
+    stats: { Leben: 3, Kraft: 3, Tempo: 3, Sprung: 3 },
+    look: {
+      build: 'normal', head: 'band', torso: 'gi',
+      palettes: [
+        { gi: '#1fa59c', giDark: '#0e5a55', pants: '#1fa59c', belt: '#111318', band: '#ff8c1a', skin: '#f0b98d', hair: '#2a1a12', glow: '#45f0e0' },
+        { gi: '#7c42d6', giDark: '#43207a', pants: '#7c42d6', belt: '#111318', band: '#a6f03a', skin: '#d79a6c', hair: '#141010', glow: '#c77dff' },
+      ],
+    },
+  },
+  fels: {
+    name: 'FELS',
+    role: 'Kraftpaket',
+    info: 'Langsam, aber zäh und hart. Der Erdstoß rollt über den Boden – nur geduckt blockbar.',
+    hp: 120,
+    size: 1.14,
+    walkForward: 2.7,
+    walkBack: 2.1,
+    jumpVelocity: 13.5,
+    jumpForward: 3.6,
+    airControl: 0.45,
+    airMaxSpeed: 3.8,
+    damageScale: 125,
+    special: 'stomp',
+    moves: {
+      lightStand: { startup: 5, recovery: 9 },
+      heavyStand: { startup: 11, recovery: 20, knockback: 8.5 },
+      heavyCrouch: { startup: 12 },
+    },
+    stats: { Leben: 5, Kraft: 5, Tempo: 1, Sprung: 2 },
+    look: {
+      build: 'heavy', head: 'bald', torso: 'vest',
+      palettes: [
+        { gi: '#b5652a', giDark: '#6e3a16', pants: '#3d4a2a', belt: '#1c140e', band: '#e8d9b0', skin: '#c98e62', hair: '#3a2416', glow: '#ffb347' },
+        { gi: '#4a5a78', giDark: '#2a3346', pants: '#262b36', belt: '#101216', band: '#d0d6e0', skin: '#a8714a', hair: '#1a1414', glow: '#8fd3ff' },
+      ],
+    },
+  },
+  wiesel: {
+    name: 'WIESEL',
+    role: 'Flink',
+    info: 'Schnell und wendig mit Doppelsprung. Der Blitztritt überrascht – geblockt ist er aber gefährlich.',
+    hp: 85,
+    size: 0.92,
+    walkForward: 4.3,
+    walkBack: 3.3,
+    jumpVelocity: 15.5,
+    jumpForward: 4.8,
+    airControl: 0.9,
+    airMaxSpeed: 5.4,
+    airJumps: 1,
+    airJumpVelocity: 12.5,
+    damageScale: 80,
+    special: 'dashKick',
+    moves: {
+      lightStand: { startup: 3, recovery: 7 },
+      heavyStand: { startup: 8, recovery: 16 },
+      lightCrouch: { startup: 4 },
+      heavyCrouch: { startup: 9, recovery: 20 },
+    },
+    stats: { Leben: 2, Kraft: 2, Tempo: 5, Sprung: 5 },
+    look: {
+      build: 'slim', head: 'scarf', torso: 'jacket',
+      palettes: [
+        { gi: '#d6336c', giDark: '#7d1a3e', pants: '#2b2135', belt: '#1a1420', band: '#f4f4f4', skin: '#f2c6a0', hair: '#2b2b40', glow: '#ff6fae' },
+        { gi: '#6b6f78', giDark: '#3a3d44', pants: '#1d1f24', belt: '#111216', band: '#ffcc33', skin: '#c99068', hair: '#5a3010', glow: '#ffd75e' },
+      ],
+    },
+  },
+};
+
+// Reihenfolge im Auswahl-Bildschirm
+export const CHARACTER_ORDER = ['funke', 'fels', 'wiesel'];
 
 // ---------------------------------------------------------------------
 // Kampfregeln
@@ -242,10 +371,10 @@ export const GAMEPAD = {
 // Aussehen (nur Grafik, ändert nichts am Spielablauf)
 // ---------------------------------------------------------------------
 export const LOOK = {
+  // Kennfarben der Spieler (Namen, Markierungen); die Kämpfer-Farben stehen bei CHARACTERS
   PLAYERS: [
-    // Eigene Farben (bewusst nicht an bekannte Spielfiguren angelehnt)
-    { name: 'SPIELER 1', gi: '#1fa59c', giDark: '#0e5a55', belt: '#111318', band: '#ff8c1a', skin: '#f0b98d', hair: '#2a1a12', glow: '#45f0e0' },
-    { name: 'SPIELER 2', gi: '#7c42d6', giDark: '#43207a', belt: '#111318', band: '#a6f03a', skin: '#d79a6c', hair: '#141010', glow: '#c77dff' },
+    { name: 'SPIELER 1', color: '#ffb02e' },
+    { name: 'SPIELER 2', color: '#5fd4ff' },
   ],
   SCREEN_SHAKE: 1.0,     // 0 = aus, 1 = normal, 2 = doppelt
   PARTICLES: 1.0,        // Menge der Partikel (0 = aus)
@@ -255,5 +384,5 @@ export const LOOK = {
 // Nur diese Teile bestimmen den Spielablauf. Online müssen sie bei beiden
 // Spielern gleich sein (wird beim Verbinden per Prüfsumme verglichen).
 export function gameplayConfig() {
-  return { GAME_VERSION, STAGE, FIGHTER, MOVES, COMBAT, ROUND, TRAINING };
+  return { GAME_VERSION, STAGE, FIGHTER, MOVES, CHARACTERS, COMBAT, ROUND, TRAINING };
 }
