@@ -341,6 +341,7 @@ export class Renderer {
         this.addParticle({ type: 'ring', x: sx, y: sy, life: 0.3, size: big ? 90 : 55, color: 'rgba(255,230,160,1)' });
         this.shake = Math.max(this.shake, (big ? 9 : 4) * shakeMul);
         if (e.combo >= 2) this.combo[e.a] = { count: e.combo, t: this.time };
+        if (e.grab) this.label('GEPACKT!', sx, sy - 70, '#ffd23b');
         if (e.adv !== null && e.adv !== undefined) this.lastAdv = { value: e.adv, kind: 'Treffer', dmg: e.dmg };
         else this.lastAdv = { value: null, kind: 'Treffer', dmg: e.dmg };
         this.crowdHype = Math.max(this.crowdHype, big ? 0.6 : 0.25);
@@ -372,13 +373,33 @@ export class Renderer {
         }
         break;
       }
+      case 'counter': {
+        // Konter: Schild in Luchs' Farbe, Blitz und Schriftzug
+        const glow = this.palettes ? this.palettes[e.p].glow : '#ffffff';
+        this.addParticle({ type: 'shield', x: sx, y: sy, life: 0.35, size: 48, color: rgba(glow, 1) });
+        this.addParticle({ type: 'ring', x: sx, y: sy, life: 0.4, size: 110, color: rgba(glow, 1) });
+        this.burst(sx, sy, 18, ['#ffffff', glow], 460, 'spark', amount);
+        this.label('KONTER!', sx, sy - 70, glow);
+        this.shake = Math.max(this.shake, 6 * shakeMul);
+        this.flash = Math.max(this.flash, 0.18);
+        this.crowdHype = Math.max(this.crowdHype, 0.8);
+        break;
+      }
       case 'clash':
         this.burst(sx, sy, 30, ['#fff', '#d8f0ff', '#ffd9a0'], 520, 'spark', amount);
         this.addParticle({ type: 'ring', x: sx, y: sy, life: 0.4, size: 120, color: 'rgba(255,255,255,1)' });
         this.shake = Math.max(this.shake, 6 * shakeMul);
         break;
       case 'fade':
-        this.burst(sx, sy, 8, ['#ffffff'], 120, 'dot', amount);
+        if (e.ground) {
+          // Sternwurf zerplatzt am Boden
+          const glow = this.palettes && e.p !== undefined ? this.palettes[e.p].glow : '#ffe066';
+          this.burst(sx, FLOOR_Y - 6, 14, ['#ffffff', glow], 300, 'dot', amount);
+          this.addParticle({ type: 'star', x: sx, y: FLOOR_Y - 8, life: 0.18, size: 40, color: glow });
+          this.dust(sx, FLOOR_Y, 6, amount);
+        } else {
+          this.burst(sx, sy, 8, ['#ffffff'], 120, 'dot', amount);
+        }
         break;
       case 'jump':
         if (e.double) {
@@ -408,6 +429,11 @@ export class Renderer {
         this.lastAdv = null;
         break;
     }
+  }
+
+  // Kurzer Schriftzug über dem Geschehen (z. B. "KONTER!")
+  label(text, x, y, color) {
+    this.addParticle({ type: 'label', text, x, y, life: 0.9, size: 30, color });
   }
 
   addParticle(p) {
@@ -675,7 +701,7 @@ export class Renderer {
 
     const white = fx.flash > 0.05;
     const C = white
-      ? { gi: '#ffffff', giDark: '#f2f2f2', pants: '#ffffff', skin: '#ffffff', skinDark: '#eeeeee', band: '#ffffff', belt: '#ffffff', hair: '#ffffff' }
+      ? { gi: '#ffffff', giDark: '#f2f2f2', pants: '#ffffff', skin: '#ffffff', skinDark: '#eeeeee', band: '#ffffff', belt: '#ffffff', hair: '#ffffff', hat: '#ffffff' }
       : { ...pal, pants: pal.pants || pal.gi, skinDark: shade(pal.skin, 0.78) };
     const pantsBack = white ? '#f2f2f2' : shade(C.pants, 0.62);
 
@@ -685,7 +711,7 @@ export class Renderer {
 
     // Leuchtspur der zuschlagenden Faust / des Fußes
     const m = f.state === 'attack' && f.move ? cd.moves[f.move] : null;
-    if (m && !m.projectile && !white && f.moveFrame >= m.startup - 1) {
+    if (m && m.hitbox && !white && f.moveFrame >= m.startup - 1) {
       fx.trail.push({ p: P(KICKS.includes(f.move) ? j.footF : j.handF), t: this.time });
     }
     fx.trail = fx.trail.filter((t) => this.time - t.t < 0.1);
@@ -700,11 +726,13 @@ export class Renderer {
       ctx.globalCompositeOperation = 'source-over';
     }
 
-    // Schal (Wiesel) weht hinter dem Körper
+    // Schal (Wiesel) und Pferdeschwanz (Luchs) wehen hinter dem Körper
     if (look.head === 'scarf') this.drawScarfTail(P, j, C, dir, f, i, k);
+    if (look.head === 'ponytail') this.drawPonytail(P, j, C, dir, f, i, k);
 
     // Reihenfolge: hinterer Arm, hinteres Bein, Körper, Kopf, vorderes Bein, vorderer Arm
-    const armOpts = { sleeveless: look.torso === 'vest', wraps: look.torso === 'vest' };
+    const bareArms = look.torso === 'vest' || look.torso === 'tank';
+    const armOpts = { sleeveless: bareArms, wraps: bareArms };
     this.drawArm(P, j.shoulder, j.elbowB, j.handB, C.giDark, C.skinDark, k, { ...armOpts, wrapColor: shade(C.band, 0.75) });
     this.drawLeg(P, j.hip, j.kneeB, j.footB, j.footAngleB, pantsBack, C.skinDark, dir, k);
     this.drawTorso(P, j, C, dir, k, look.torso);
@@ -712,8 +740,16 @@ export class Renderer {
     this.drawLeg(P, j.hip, j.kneeF, j.footF, j.footAngleF, C.pants, C.skin, dir, k);
     this.drawArm(P, j.shoulder, j.elbowF, j.handF, C.gi, C.skin, k, { ...armOpts, wrapColor: C.band });
 
-    // Aufladen des Energieballs in der Wurfhand
-    if (m && m.projectile === 'ball' && f.moveFrame < m.startup) {
+    // Konter-Haltung: Hände leuchten, solange der Konter bereit ist
+    if (m && m.counter && f.moveFrame >= m.startup && f.moveFrame < m.startup + m.active) {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.6 + Math.sin(this.time * 30) * 0.25;
+      for (const hand of [P(j.handF), P(j.handB)]) ctx.drawImage(this.glowSprite(pal.glow), hand[0] - 30, hand[1] - 30, 60, 60);
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    // Aufladen des Energieballs / Sterns in der Wurfhand
+    if (m && (m.projectile === 'ball' || m.projectile === 'arc') && f.moveFrame < m.startup) {
       const hand = P(j.handF);
       const t = f.moveFrame / m.startup;
       ctx.globalCompositeOperation = 'lighter';
@@ -858,9 +894,57 @@ export class Renderer {
       return;
     }
 
+    if (type === 'tank') {
+      // Luchs: ärmelloses Top (Schultern frei) mit geknoteter Schärpe
+      ctx.fillStyle = C.skin;
+      quad(14 * b, 19 * b, -0.02, 0.98);
+      ctx.fill();
+      ctx.fillStyle = C.gi;
+      quad(14 * b, 13 * b, -0.02, 0.9);
+      ctx.fill();
+      const sash = along(0.12);
+      this.stroke2([sash[0] + nx * 15 * b, sash[1] + ny * 15 * b], [sash[0] - nx * 15 * b, sash[1] - ny * 15 * b], 7 * k.size, C.band);
+      const knot = [sash[0] - dir * 6 * b, sash[1]];
+      this.stroke2(knot, [knot[0] - dir * 9, knot[1] + 14 * k.size], 4 * k.size, C.band);
+      return;
+    }
+
     ctx.fillStyle = C.gi;
     quad(14 * b, 19 * b, -0.02, 0.98);
     ctx.fill();
+
+    if (type === 'hoodie') {
+      // Komet: Kapuzenpulli mit Bauchtasche, Bund und Kordeln
+      ctx.fillStyle = C.giDark;
+      quad(11 * b, 9 * b, 0.12, 0.42);
+      ctx.fill();
+      const hem = along(0.04);
+      this.stroke2([hem[0] + nx * 14 * b, hem[1] + ny * 14 * b], [hem[0] - nx * 14 * b, hem[1] - ny * 14 * b], 5 * k.size, C.giDark);
+      for (const side of [3, -3]) {
+        const top = along(0.94);
+        const end = along(0.7);
+        this.stroke2([top[0] + nx * side * b, top[1] + ny * side * b], [end[0] + nx * side * 1.3 * b, end[1] + ny * side * 1.3 * b], 2 * k.size, C.band);
+      }
+      return;
+    }
+
+    if (type === 'overall') {
+      // Anker: Latzhose über dem Hemd, Träger mit Knöpfen
+      ctx.fillStyle = C.pants;
+      quad(14 * b, 11 * b, -0.02, 0.6);
+      ctx.fill();
+      for (const side of [1, -1]) {
+        const bib = along(0.6);
+        const sh = along(0.97);
+        const a = [bib[0] + nx * 9 * b * side, bib[1] + ny * 9 * b * side];
+        this.stroke2(a, [sh[0] + nx * 12 * b * side, sh[1] + ny * 12 * b * side], 4.5 * k.size, C.pants);
+        ctx.fillStyle = C.band;
+        ctx.beginPath();
+        ctx.arc(a[0], a[1], 2.6 * k.size, 0, TAU);
+        ctx.fill();
+      }
+      return;
+    }
 
     if (type === 'jacket') {
       // Wiesel: Jacke mit Reißverschluss und Bund
@@ -935,6 +1019,58 @@ export class Renderer {
       ctx.fill();
       const brow = at(r * 0.28, r * 0.5);
       this.stroke2([brow[0] - fwd[0] * 4, brow[1] - fwd[1] * 4], [brow[0] + fwd[0] * 5, brow[1] + fwd[1] * 5], 3.5 * w, C.hair);
+    } else if (type === 'ponytail') {
+      // Luchs: Haare straff nach hinten (der Pferdeschwanz kommt aus drawPonytail)
+      ctx.fillStyle = C.hair;
+      ctx.beginPath();
+      ctx.arc(h[0], h[1], r + 1.5, base + 0.55 * dir, base - 1.9 * dir, dir > 0);
+      ctx.closePath();
+      ctx.fill();
+      const tie = at(r * 0.3, -r * 0.92);
+      ctx.fillStyle = C.band;
+      ctx.beginPath();
+      ctx.arc(tie[0], tie[1], 3.5 * w, 0, TAU);
+      ctx.fill();
+    } else if (type === 'hood') {
+      // Komet: Kapuze über dem Kopf, das Gesicht schaut vorne heraus
+      for (const [extra, color, from, to] of [[6.5, OUTLINE, 0.8, 2.35], [4, C.gi, 0.74, 2.3]]) {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(h[0], h[1], r + extra * w, base + from * dir, base - to * dir, dir > 0);
+        ctx.closePath();
+        ctx.fill();
+      }
+      // Haarsträhne unter dem Kapuzenrand
+      const fringe = at(r * 0.45, r * 0.55);
+      ctx.fillStyle = C.hair;
+      ctx.beginPath();
+      ctx.arc(fringe[0], fringe[1], 4 * w, 0, TAU);
+      ctx.fill();
+      // Rand der Kapuze
+      const e0 = at(r * 0.72, r * 0.62);
+      const e1 = at(-r * 0.62, -r * 0.55);
+      this.stroke2(e0, e1, 3 * w, C.giDark);
+    } else if (type === 'beanie') {
+      // Anker: Stoppelbart und Strickmütze mit Umschlag
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = C.hair;
+      ctx.beginPath();
+      ctx.arc(h[0], h[1], r + 0.5, base + Math.PI * 0.45 * dir, base + Math.PI * 0.95 * dir, dir < 0);
+      const ear = at(-r * 0.1, -r * 0.15);
+      ctx.lineTo(ear[0], ear[1]);
+      const mouth = at(-r * 0.2, r * 0.7);
+      ctx.lineTo(mouth[0], mouth[1]);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      for (const [extra, color] of [[4.5, OUTLINE], [2.5, C.hat]]) {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(h[0], h[1], r + extra * w, base + 1.25 * dir, base - 1.5 * dir, dir > 0);
+        ctx.closePath();
+        ctx.fill();
+      }
+      this.stroke2(at(r * 0.3, r * 0.98), at(r * 0.08, -r * 1.02), 6 * w, shade(C.hat || '#ffffff', 0.7));
     } else if (type === 'scarf') {
       // Wiesel: Stachelhaare
       ctx.fillStyle = C.hair;
@@ -988,6 +1124,27 @@ export class Renderer {
     ctx.fill();
   }
 
+  // Luchs' Pferdeschwanz, schwingt hinter dem Kopf
+  drawPonytail(P, j, C, dir, f, i, k) {
+    const ctx = this.ctx;
+    const h = P(j.head);
+    const r = 15 * k.head;
+    const speed = clamp(Math.abs(f.vx) / SUB, 0, 8);
+    const swing = Math.sin(this.time * 8 + i) * 4;
+    const start = [h[0] - dir * r * 0.85, h[1] - r * 0.35];
+    const len = (30 + speed * 3) * k.size;
+    const mid = [start[0] - dir * len * 0.55, start[1] + 2 + swing * 0.5];
+    const end = [start[0] - dir * len, start[1] + 22 - speed * 1.5 + swing];
+    for (const [w, color] of [[11 * k.size, OUTLINE], [7.5 * k.size, C.hair]]) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      ctx.moveTo(start[0], start[1]);
+      ctx.quadraticCurveTo(mid[0], mid[1], end[0], end[1]);
+      ctx.stroke();
+    }
+  }
+
   // Wiesels langes Schal-Ende, weht im Wind hinter dem Körper
   drawScarfTail(P, j, C, dir, f, i, k) {
     const ctx = this.ctx;
@@ -1017,6 +1174,10 @@ export class Renderer {
         this.drawWave(p, x, dirX, glow, dt);
         continue;
       }
+      if (p.kind === 'arc') {
+        this.drawStar(p, x, dirX, glow, dt);
+        continue;
+      }
       const y = FLOOR_Y - (p.y + p.h / 2) / SUB;
       // Schweif
       if (Math.random() < dt * 60) {
@@ -1042,6 +1203,38 @@ export class Renderer {
         ctx.stroke();
       }
     }
+  }
+
+  // Komets Stern: dreht sich, leuchtet und zieht Funken hinter sich her
+  drawStar(p, x, dirX, glow, dt) {
+    const ctx = this.ctx;
+    const y = FLOOR_Y - (p.y + p.h / 2) / SUB;
+    if (Math.random() < dt * 70) {
+      this.addParticle({
+        type: 'dot', x: x + rand(-6, 6), y: y + rand(-6, 6),
+        vx: rand(-40, 40), vy: rand(-20, 30), life: rand(0.25, 0.5), size: rand(2, 4),
+        color: Math.random() < 0.5 ? '#ffffff' : glow, drag: 2, grav: 120,
+      });
+    }
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.85;
+    ctx.drawImage(this.glowSprite(glow), x - 48, y - 48, 96, 96);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+    const R = (p.w / SUB) * 0.62;
+    const rot = this.time * 9 * dirX;
+    ctx.beginPath();
+    for (let n = 0; n < 10; n++) {
+      const a = rot + (n / 10) * TAU;
+      const rr = n % 2 ? R * 0.45 : R;
+      ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+    }
+    ctx.closePath();
+    ctx.fillStyle = '#fffbe6';
+    ctx.strokeStyle = glow;
+    ctx.lineWidth = 3;
+    ctx.fill();
+    ctx.stroke();
   }
 
   // Fels' Druckwelle: Gesteinsspitzen und Staub über den Boden
@@ -1107,8 +1300,18 @@ export class Renderer {
     for (const p of this.particles) {
       const t = p.age / p.life;
       const a = 1 - t;
-      ctx.globalCompositeOperation = p.type === 'smoke' ? 'source-over' : 'lighter';
+      ctx.globalCompositeOperation = p.type === 'smoke' || p.type === 'label' ? 'source-over' : 'lighter';
       switch (p.type) {
+        case 'label': {
+          ctx.globalAlpha = t < 0.75 ? 1 : (1 - t) / 0.25;
+          const pop = t < 0.1 ? 1.4 - t * 4 : 1;
+          ctx.save();
+          ctx.translate(p.x, p.y - t * 26);
+          ctx.scale(pop, pop);
+          this.text(p.text, 0, 0, p.size, { fill: p.color, stroke: OUTLINE, line: 6 });
+          ctx.restore();
+          break;
+        }
         case 'spark': {
           const len = p.size * a;
           const sp = Math.hypot(p.vx, p.vy) || 1;

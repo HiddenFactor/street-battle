@@ -250,7 +250,7 @@ $('btn-mute').addEventListener('click', () => {
   ui.toast(sound.muted ? 'Ton aus' : 'Ton an', 1200);
 });
 $('btn-fullscreen').addEventListener('click', toggleFullscreen);
-// Nach einem Klick den Fokus abgeben – sonst würde die Leertaste (Energieball) den Knopf erneut drücken
+// Nach einem Klick den Fokus abgeben – sonst würde die Leertaste (Special) den Knopf erneut drücken
 $('top-buttons').addEventListener('click', () => document.activeElement && document.activeElement.blur());
 
 function toggleFullscreen() {

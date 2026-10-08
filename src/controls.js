@@ -36,7 +36,7 @@ export function menuHint() {
   const p1 = KEYS.P1;
   const p2 = KEYS.P2;
   return `Steuerung: ${moveKeys(p1)} · ${first(p1, 'light')} schnell · ${first(p1, 'heavy')} stark · ` +
-    `${first(p1, 'special')} Energieball   (Spieler 2: ${moveKeys(p2)} + ${first(p2, 'light')}/${first(p2, 'heavy')}/${first(p2, 'special')})`;
+    `${first(p1, 'special')} Special   (Spieler 2: ${moveKeys(p2)} + ${first(p2, 'light')}/${first(p2, 'heavy')}/${first(p2, 'special')})`;
 }
 
 /**

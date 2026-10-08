@@ -10,8 +10,8 @@
 // 180 = nach oben. Unterarm/Unterschenkel sind relativ zum oberen Teil.
 // =====================================================================
 
-import { charData, SUB } from './sim.js';
-import { COMBAT, FIGHTER, CHARACTERS } from './config.js';
+import { charData, TIMING } from './sim.js';
+import { CHARACTERS } from './config.js';
 
 export const BONES = { thigh: 42, shin: 42, upperArm: 28, foreArm: 27, torso: 50, neck: 7, head: 15 };
 
@@ -96,7 +96,34 @@ const ATTACKS = {
     windup: P({ hip: [-4, 77], torso: -10, head: -4, armF: [-55, 50], armB: [60, 80], legF: [26, -30], legB: [-18, -18] }),
     strike: P({ hip: [6, 74], torso: 16, head: 4, armF: [88, -4], armB: [-20, 50], legF: [36, -30], legB: [-28, -6] }),
   },
+  // Luchs: Konter-Haltung – offene Hände vorn, tief und lauernd
+  counter: {
+    base: 'stance',
+    windup: P({ hip: [-2, 72], torso: -4, head: -8, armF: [80, 60], armB: [60, 90], legF: [34, -50], legB: [-24, -30] }),
+    strike: P({ hip: [-6, 68], torso: -8, head: -10, armF: [105, 35], armB: [75, 70], legF: [42, -60], legB: [-28, -38] }),
+  },
+  // Luchs: Konterschlag – Ausfallschritt mit gestrecktem Handballen
+  counterStrike: {
+    base: 'stance',
+    windup: P({ hip: [-4, 70], torso: -6, armF: [40, 110], armB: [70, 60], legF: [40, -55], legB: [-26, -34] }),
+    strike: P({ hip: [10, 70], torso: 24, head: 6, armF: [92, -2], armB: [-35, 40], legF: [55, -30], legB: [-45, -4] }),
+  },
+  // Komet: Wurf von unten nach oben (der Stern steigt hoch)
+  arc: {
+    base: 'stance',
+    windup: P({ hip: [-4, 72], torso: -4, head: 0, armF: [-40, 30], armB: [40, 90], legF: [32, -44], legB: [-20, -20] }),
+    strike: P({ hip: [4, 80], torso: 2, head: -16, armF: [140, 10], armB: [-15, 60], legF: [28, -22], legB: [-26, -8] }),
+  },
+  // Anker: Griff – beide Arme weit nach vorn
+  grab: {
+    base: 'stance',
+    windup: P({ hip: [-2, 74], torso: 4, head: -4, armF: [60, 70], armB: [55, 80], legF: [30, -40], legB: [-20, -24] }),
+    strike: P({ hip: [6, 72], torso: 22, head: 4, armF: [88, 12], armB: [80, 22], legF: [44, -40], legB: [-30, -14] }),
+  },
 };
+
+// Anker: hat der Griff gepackt, wird der Gegner über den Kopf geworfen
+const THROW = P({ hip: [-4, 80], torso: -24, head: -16, armF: [165, 20], armB: [155, 30], legF: [26, -20], legB: [-22, -12] });
 
 // ---------------------------------------------------------------------
 // Überblenden
@@ -163,7 +190,7 @@ function basePose(f, time) {
   switch (f.state) {
     case 'walk': {
       const backwards = f.vx * f.facing < 0;
-      return { pose: cycle(WALK, backwards ? -f.stateFrame : f.stateFrame, 27), snap: false };
+      return { pose: cycle(WALK, backwards ? -f.stateFrame : f.stateFrame, 27 / TIMING.speed), snap: false };
     }
     case 'crouch':
       return { pose: f.guarding ? POSES.guardCrouch : POSES.crouch, snap: false };
@@ -173,7 +200,7 @@ function basePose(f, time) {
     case 'air': {
       if (f.jumpDir !== 0) {
         // Salto beim Vor-/Rückwärtssprung
-        const airtime = (2 * charData(f).jumpV) / SUB / FIGHTER.GRAVITY;
+        const airtime = (2 * charData(f).jumpV) / TIMING.gravity;
         const t = Math.min(1, Math.max(0, (f.stateFrame - 4) / (airtime - 12)));
         const flipDir = f.jumpDir * f.facing; // 1 = vorwärts
         const pose = { ...blend(POSES.jumpUp, POSES.tuck, Math.min(1, t * 4) * Math.min(1, (1 - t) * 4)) };
@@ -202,7 +229,7 @@ function basePose(f, time) {
     case 'ko':
       return { pose: POSES.lying, snap: false };
     case 'getup': {
-      const t = 1 - f.stun / COMBAT.GETUP_TIME;
+      const t = 1 - f.stun / TIMING.getup;
       const pose = t < 0.5 ? blend(POSES.lying, POSES.squat, ease(t * 2)) : blend(POSES.squat, POSES.stance, ease((t - 0.5) * 2));
       return { pose, snap: true };
     }
@@ -235,6 +262,10 @@ function attackPose(f) {
   if (mf < m.startup + m.active) return a.strike;
   if (m.recovery <= 0) return a.strike;
   const t = (mf - m.startup - m.active + 1) / m.recovery;
+  if (m.grab && f.hasHit) {
+    // gepackt: hochreißen und werfen, dann zurück in die Grundhaltung
+    return t < 0.5 ? blend(a.strike, THROW, ease(Math.min(1, t * 3))) : blend(THROW, base, ease((t - 0.5) * 2));
+  }
   return blend(a.strike, base, ease(Math.min(1, t)));
 }
 

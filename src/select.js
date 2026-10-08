@@ -1,8 +1,9 @@
 // =====================================================================
 // select.js – Auswahl-Bildschirm für die Charaktere
 // ---------------------------------------------------------------------
-// Lokal:    beide Spieler wählen gleichzeitig (P1: A/D + bestätigen,
+// Lokal:    beide Spieler wählen gleichzeitig (P1: WASD + bestätigen,
 //           P2: Pfeile + Num1). Los geht's, wenn beide bereit sind.
+//           Die Karten liegen in Reihen zu je 3 (hoch/runter = Reihe wechseln).
 // Training: erst den eigenen Kämpfer, dann den Dummy wählen.
 // Online:   jeder wählt selbst und sieht die Wahl des Gegners;
 //           der Host startet, sobald beide bereit sind (online.js).
@@ -10,11 +11,12 @@
 // =====================================================================
 
 import { CHARACTERS, CHARACTER_ORDER, KEYS, LOOK, MOVES } from './config.js';
-import { KeyboardInput, GamepadInput, combine, LEFT, RIGHT, LIGHT, HEAVY } from './input.js';
+import { KeyboardInput, GamepadInput, combine, UP, DOWN, LEFT, RIGHT, LIGHT, HEAVY } from './input.js';
 import { keyLabel } from './controls.js';
 
 const $ = (id) => document.getElementById(id);
 const N = CHARACTER_ORDER.length;
+const COLS = 3; // Karten pro Reihe (wie im CSS)
 
 export class CharacterSelect {
   /**
@@ -35,6 +37,7 @@ export class CharacterSelect {
     this.step = 0;
     this.prev = [0, 0];
     this.botTimer = 0;
+    this.focus = 0; // wessen Wahl unten beschrieben wird
     this.inputs = [
       combine(new KeyboardInput(KEYS.P1), new GamepadInput(0)),
       combine(new KeyboardInput(KEYS.P2), new GamepadInput(1)),
@@ -59,7 +62,7 @@ export class CharacterSelect {
       card.innerHTML =
         `<span class="badge b1">P1</span><span class="badge b2">P2</span>` +
         `<b class="char-name">${c.name}</b><em class="char-role">${c.role}</em>` +
-        `<div class="stats">${stats}</div><p class="char-special">★ ${MOVES[c.special].name}</p><p class="char-info">${c.info}</p>`;
+        `<div class="stats">${stats}</div><p class="char-special">★ ${MOVES[c.special].name}</p>`;
       card.addEventListener('click', () => this.clickCard(idx));
       box.appendChild(card);
       return card;
@@ -81,6 +84,7 @@ export class CharacterSelect {
     this.ready = [false, false];
     this.cursor = [0, 1].map((i) => Math.max(0, initial ? CHARACTER_ORDER.indexOf(initial[i]) : 0));
     this.local = mode === 'online' ? session.localPlayer : -1;
+    this.focus = mode === 'online' ? this.local : 0;
     // Schon gedrückte Knöpfe sollen nicht sofort etwas auslösen
     this.prev = [this.inputs[0].read(), this.inputs[1].read()];
     this.prevAny = this.inputAny.read();
@@ -130,6 +134,8 @@ export class CharacterSelect {
     const pressed = mask & ~prev;
     if (pressed & LEFT) this.move(slot, -1);
     if (pressed & RIGHT) this.move(slot, 1);
+    if (pressed & UP) this.move(slot, -COLS);
+    if (pressed & DOWN) this.move(slot, COLS);
     if (pressed & LIGHT) this.confirm(slot);
     if (pressed & HEAVY) this.cancel(slot);
   }
@@ -137,6 +143,7 @@ export class CharacterSelect {
   move(slot, d) {
     if (this.ready[slot]) return;
     this.cursor[slot] = (this.cursor[slot] + d + N) % N;
+    this.focus = slot;
     this.sound.play('menu');
     if (this.mode === 'online') this.sendPick();
     this.render();
@@ -145,9 +152,11 @@ export class CharacterSelect {
   confirm(slot) {
     if (this.ready[slot]) return;
     this.ready[slot] = true;
+    this.focus = slot;
     this.sound.play('connect');
     if (this.mode === 'training' && this.step === 0) {
       this.step = 1; // jetzt den Dummy wählen
+      this.focus = 1;
       this.render();
       return;
     }
@@ -215,6 +224,9 @@ export class CharacterSelect {
     const title =
       this.mode === 'training' ? (this.step === 0 ? 'Wähle deinen Kämpfer' : 'Wähle den Dummy') : 'Wähle deinen Kämpfer';
     this.ui.setText('select-title', title);
+    // Beschreibung des Kämpfers, der zuletzt angewählt wurde
+    const c = CHARACTERS[CHARACTER_ORDER[this.cursor[this.focus]]];
+    $('select-info').innerHTML = `<b>${c.name} – ${MOVES[c.special].name}:</b> ${c.info}`;
     let status = '';
     if (this.mode === 'online') {
       const me = this.ready[this.local];
@@ -233,9 +245,10 @@ export class CharacterSelect {
     const key = (list) => keyLabel(list.find((c) => !c.startsWith('Mouse')) || list[0]);
     const p1 = KEYS.P1;
     const p2 = KEYS.P2;
-    const k1 = `${key(p1.left)}/${key(p1.right)} wählen · ${key(p1.light)} bestätigen · ${key(p1.heavy)} zurück`;
+    const dirs = (p) => [p.up, p.left, p.down, p.right].map(key).join('');
+    const k1 = `${dirs(p1)} wählen · ${key(p1.light)} bestätigen · ${key(p1.heavy)} zurück`;
     if (this.mode !== 'local') return `${k1} – oder auf eine Karte klicken`;
-    const k2 = `${key(p2.left)}/${key(p2.right)} · ${key(p2.light)} · ${key(p2.heavy)}`;
+    const k2 = `${dirs(p2)} · ${key(p2.light)} · ${key(p2.heavy)}`;
     return `Spieler 1: ${k1}   ·   Spieler 2: ${k2}   ·   oder auf eine Karte klicken`;
   }
 

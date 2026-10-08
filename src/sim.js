@@ -703,7 +703,7 @@ function moveProjectiles(s) {
     p.life--;
     if (p.g > 0 && p.y <= 0) {
       // Bogenwurf landet: zerplatzt am Boden
-      s.events.push({ type: 'fade', kind: p.kind, ground: true, x: toPx(p.x), y: 0 });
+      s.events.push({ type: 'fade', kind: p.kind, ground: true, p: p.owner, x: toPx(p.x), y: 0 });
       continue;
     }
     if (p.life <= 0 || p.x < -p.w || p.x > K.width + p.w) {

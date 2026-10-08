@@ -24,6 +24,11 @@ Bezeichner auf Englisch, Kommentare knapp und erklärend.
 - **Nur Ganzzahlen** im State: Positionen/Geschwindigkeiten in Subpixeln (`SUB = 100`, 1 px = 100).
   config.js darf lesbare Kommazahlen enthalten (px, px/Frame); sim.js rechnet sie beim Laden
   einmal mit `Math.round(v * SUB)` in Ganzzahl-Tabellen um. Halbierungen etc. mit `Math.trunc`.
+- **Spieltempo `GAME_SPEED`** (config.js): Alle Werte in config.js gelten fürs Grundtempo. sim.js rechnet beim
+  Laden um: Geschwindigkeiten `vel()` (× Tempo), Beschleunigungen `acc()` (× Tempo²), Dauern `dur()` (÷ Tempo,
+  gerundet, mind. 1). Neue Spielwerte immer durch die passende Funktion schicken. Rundenzeit, Intro/Ende,
+  KO-Standbild, Eingabepuffer und Training-Auffüllen bleiben in echter Zeit. Grafik/Tests lesen umgerechnete
+  Werte aus `charData()` bzw. `TIMING` – nie direkt aus MOVES/FIGHTER, wenn es um Frames/Tempo geht.
 - State ist reines JSON: Zahlen, Strings, Booleans, Arrays, **flache** Objekte. Kämpfer und
   Projektile enthalten keine verschachtelten Objekte → `cloneState` ist eine flache Kopie.
   Neue Felder immer flach anlegen, sonst muss `cloneState` angepasst werden.
@@ -36,9 +41,14 @@ Bezeichner auf Englisch, Kommentare knapp und erklärend.
 - Charaktere: `state.chars` + `fighter.char`. sim.js baut beim Laden `CHAR_DATA[id]` (Grundwerte aus
   FIGHTER/MOVES + Abweichungen aus CHARACTERS, `size` skaliert ALLE Boxen, `damageScale` den Schaden).
   Zugriff nur über `charData(f)` – nie direkt auf MOVES/FIGHTER für charakterabhängige Werte.
-  Special-Mechaniken sind datengetrieben: `projectile: 'ball'|'wave'` (Geschoss, `ball` = Box),
-  `dashSpeed` (Sprint während der aktiven Frames), `airJumps` (Doppelsprung, neue „hoch“-Flanke).
-- Balancing per Bot-Simulation prüfen (alle Paarungen ~45–55 %), Werte in config.js kommentiert.
+  Special-Mechaniken sind datengetrieben: `projectile: 'ball'|'wave'|'arc'` (Geschoss, `ball` = Box;
+  `arc` mit `rise`/`gravity`, Weite über `speedNear`/`speedFar` je nach gehaltener Richtung, zerplatzt am Boden),
+  `dashSpeed` (Sprint während der aktiven Frames), `airJumps` (Doppelsprung, neue „hoch“-Flanke),
+  `grab` (unblockbar, packt keine Gegner in Luft/hitstun/blockstun), `counter: 'moveId'` (fängt in den aktiven
+  Frames Schläge und Geschosse ab, Griffe nicht; startet dann den genannten Angriff, Geschosse → sofort idle).
+- `BotInput` (input.js) setzt das Special je nach Art ein (Geschoss fern, Sprint mittel, Griff/Konter nah) –
+  wichtig fürs Balancing per Bot-Simulation.
+- Balancing per Bot-Simulation prüfen (alle 15 Paarungen ~45–55 %, mehrere Seeds), Werte in config.js kommentiert.
 
 ### Spielschleife (src/main.js, src/pacing.js)
 - Fester Takt 60 Ticks/s per `FrameClock` (pacing.js), max. 5 Schritte pro Bild. Rendering ist davon getrennt.
@@ -65,7 +75,9 @@ Bezeichner auf Englisch, Kommentare knapp und erklärend.
 
 ### Charakterwahl (src/select.js)
 - `CharacterSelect`: lokal zwei Cursor (P1/P2-Tasten, Pads 0/1), Training erst Spieler dann Dummy,
-  online nur der eigene Cursor. Zeichnet über `sceneState()` eine Bühne (Renderer `view.select`).
+  online nur der eigene Cursor. Karten im 3er-Raster (links/rechts ±1, hoch/runter ±3, `COLS` = CSS-Spalten),
+  Beschreibung des zuletzt bewegten Cursors in `#select-info`. Zeichnet über `sceneState()` eine Bühne
+  (Renderer `view.select`).
 - Online: OnlineSession `mode` = 'select' | 'play'. Picks als `pick {c,r,n}` (+ im `ping` als `pk`,
   `n` = Sequenz gegen Vertauschung). Host startet mit `createMatch({chars:[host, gast]})`, sobald beide
   bereit sind. `reselect {s}` schickt beide zurück zur Auswahl; Rematch behält `state.chars`.
@@ -113,7 +125,10 @@ Bezeichner auf Englisch, Kommentare knapp und erklärend.
 - `src/touch.js` – Touch-Steuerung · `src/lockstep.js`, `src/net.js`, `src/online.js` – Online
 - `src/select.js` – Charakterwahl · `src/pacing.js` – Spieltakt · `src/controls.js` – Tastenanzeige
 - `tests/characters.test.js` – Fähigkeiten aller Charaktere, alle Paarungen deterministisch
-- `tests/poses.html?char=fels` – Posen eines Charakters mit Hitboxen
+- `tests/poses.html?char=fels` – Posen eines Charakters mit Hitboxen, `?lineup` – alle Kämpfer in beiden Farben
+- Neuer Charakter: Eintrag in `CHARACTERS` + `CHARACTER_ORDER` (config.js), ggf. neuer Special-Eintrag in `MOVES`,
+  Pose in `ATTACKS` (poses.js), Kopf/Oberkörper-Typ in render.js (`drawHead`/`drawTorso`), Sound in audio.js,
+  Tests in characters.test.js, Bot-Balancing. Aussehen nie an bekannte Spielfiguren anlehnen.
 - `tests/` – Node-Tests (`node:test`), `tests/online-test.html` – zwei Instanzen mit Bots über echtes PeerJS
 - `tools/serve.js` – Mini-Webserver ohne Abhängigkeiten
 - `sw.js` – Service Worker: eigene Dateien immer mit `cache: 'no-cache'` laden (GitHub Pages cacht sonst 10 Min.)

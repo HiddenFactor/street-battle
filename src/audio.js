@@ -6,6 +6,8 @@
 // =====================================================================
 
 const STORAGE_KEY = 'streetbattle-muted';
+// Geschoss-Specials haben ihren eigenen Sound beim Abwurf (Ereignis 'special')
+const SILENT_SWINGS = ['special', 'stomp', 'arc'];
 
 function loadMuted() {
   try {
@@ -167,6 +169,33 @@ export class Sound {
       case 'land':
         this.hiss({ dur: 0.07, vol: 0.18, filter: 'lowpass', f0: 600, f1: 200, pan });
         break;
+      case 'stance':
+        // Konter-Haltung: leises, hohes Sirren
+        this.tone({ type: 'triangle', f0: 900, f1: 1500, dur: 0.18, vol: 0.06, pan });
+        break;
+      case 'counter':
+        // Konter klappt: metallisches Klirren
+        this.tone({ type: 'triangle', f0: 2100, f1: 1700, dur: 0.35, vol: 0.18, pan });
+        this.tone({ type: 'square', f0: 1050, f1: 880, dur: 0.12, vol: 0.08, pan });
+        this.hiss({ dur: 0.25, vol: 0.35, filter: 'highpass', f0: 2500, pan });
+        this.tone({ f0: 160, f1: 50, dur: 0.2, vol: 0.4, delay: 0.03, pan });
+        break;
+      case 'grab':
+        // Griff packt zu: dumpfer Ruck, dann Wurf-Rauschen
+        this.tone({ f0: 120, f1: 45, dur: 0.18, vol: 0.6, pan });
+        this.hiss({ dur: 0.1, vol: 0.4, filter: 'lowpass', f0: 1200, f1: 300, pan });
+        this.hiss({ dur: 0.3, vol: 0.22, filter: 'bandpass', f0: 500, f1: 2000, q: 1.2, delay: 0.1, pan });
+        break;
+      case 'toss':
+        // Sternwurf: steigender Klang mit Glitzern
+        this.tone({ f0: 500, f1: 1400, dur: 0.25, vol: 0.12, pan });
+        for (let n = 0; n < 3; n++) this.tone({ type: 'triangle', f0: 2000 + n * 400, dur: 0.06, vol: 0.05, delay: 0.05 + n * 0.05, pan });
+        break;
+      case 'burst':
+        // Stern zerplatzt am Boden
+        this.hiss({ dur: 0.18, vol: 0.25, filter: 'highpass', f0: 1800, pan });
+        this.tone({ type: 'triangle', f0: 1500, f1: 500, dur: 0.15, vol: 0.08, pan });
+        break;
       case 'down':
         this.tone({ f0: 110, f1: 40, dur: 0.25, vol: 0.5, pan });
         this.hiss({ dur: 0.2, vol: 0.3, filter: 'lowpass', f0: 900, f1: 150, pan });
@@ -235,25 +264,34 @@ export class Sound {
     switch (e.type) {
       case 'hit':
         if (e.proj) this.play('fireballHit', pan);
+        else if (e.grab) this.play('grab', pan);
         else this.play(e.heavy ? 'hitHeavy' : 'hitLight', pan);
+        break;
+      case 'counter':
+        this.play('counter', pan);
         break;
       case 'block':
         this.play('block', pan);
         break;
       case 'swing':
         if (e.move === 'dashKick') this.play('dash', pan);
-        else if (e.move !== 'special' && e.move !== 'stomp') this.play(e.move.startsWith('heavy') ? 'swingHeavy' : 'swingLight', pan);
+        else if (e.move === 'counter') this.play('stance', pan);
+        else if (!SILENT_SWINGS.includes(e.move)) {
+          this.play(e.move.startsWith('heavy') || e.move === 'grab' || e.move === 'counterStrike' ? 'swingHeavy' : 'swingLight', pan);
+        }
         break;
       case 'special':
-        this.play(e.kind === 'wave' ? 'stomp' : 'special', pan);
+        this.play(e.kind === 'wave' ? 'stomp' : e.kind === 'arc' ? 'toss' : 'special', pan);
         break;
       case 'jump':
         this.play(e.double ? 'jump2' : 'jump', pan);
         break;
+      case 'fade':
+        this.play(e.ground ? 'burst' : 'fade', pan);
+        break;
       case 'land':
       case 'down':
       case 'clash':
-      case 'fade':
       case 'round':
       case 'fight':
       case 'ko':

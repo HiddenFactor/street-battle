@@ -6,7 +6,7 @@ und keinen Build-Schritt. Die einzige fremde Bibliothek ist [PeerJS](https://pee
 Online-Verbindung.
 
 **Modi:** Lokal (2 Spieler) · Online (Raumcode) · Training (gegen einen Dummy)
-**Kämpfer:** Funke (Allrounder) · Fels (Kraftpaket) · Wiesel (flink) – Auswahl vor jedem Match
+**Kämpfer:** Funke · Fels · Wiesel · Luchs · Komet · Anker – Auswahl vor jedem Match
 
 **▶ Jetzt spielen: <https://hiddenfactor.github.io/street-battle/>**
 (läuft über GitHub Pages – einfach diesen Link verschicken, der PC muss dafür nicht an sein)
@@ -15,14 +15,17 @@ Online-Verbindung.
 
 ## Die Kämpfer
 
-| | **Funke** – Allrounder | **Fels** – Kraftpaket | **Wiesel** – flink |
+| Kämpfer | Typ | Stärken / Schwächen | Special (Leertaste) |
 |---|---|---|---|
-| Stärken | ausgewogen | mehr Leben, mehr Schaden, größere Reichweite | schnell, schnelle Angriffe, **Doppelsprung**, starkes Lenken in der Luft |
-| Schwächen | – | langsam, niedriger Sprung, träge Angriffe | weniger Leben und Schaden |
-| Special | **Energieball** – fliegt quer über die Arena | **Erdstoß** – Druckwelle über den Boden, nur **geduckt** blockbar (oder drüberspringen) | **Blitztritt** – Sprint-Tritt, wirft um; geblockt ist man aber lange angreifbar |
+| **Funke** | Allrounder | ausgewogen | **Energieball** – fliegt quer über die Arena |
+| **Fels** | Kraftpaket | mehr Leben, Schaden und Reichweite – aber langsam, niedriger Sprung | **Erdstoß** – Druckwelle über den Boden, nur **geduckt** blockbar (oder drüberspringen) |
+| **Wiesel** | flink | schnell, **Doppelsprung**, starkes Lenken in der Luft – aber weniger Leben und Schaden | **Blitztritt** – Sprint-Tritt, wirft um; geblockt ist man lange angreifbar |
+| **Luchs** | Konter | flott, wartet auf Fehler des Gegners | **Konter** – fängt kurz jeden Schlag, Tritt und jedes Geschoss ab und schlägt sofort zurück. Gegen Griffe hilft er nicht, ins Leere ist man kurz offen |
+| **Komet** | Fernkämpfer | guter Springer, gefährlich auf Abstand | **Sternwurf** – Stern im hohen Bogen, kommt von oben: nur **stehend** blockbar. Mit zurück/vorne gehalten wirft man kurz/weit |
+| **Anker** | Ringer | am meisten Leben, groß und stark – aber am langsamsten | **Klammergriff** – packt aus der Nähe und wirft um, **Blocken hilft nicht**. Packt keine springenden Gegner; daneben gegriffen ist man lange offen |
 
-**Auswahl:** Vor jedem Match wählen beide ihren Kämpfer (Spieler 1: A/D + F, Spieler 2: ←/→ + Num 1,
-oder auf eine Karte klicken/tippen). Wählen beide denselben, bekommt Spieler 2 eine andere Farbe.
+**Auswahl:** Vor jedem Match wählen beide ihren Kämpfer (Spieler 1: W A S D + F, Spieler 2: Pfeiltasten + Num 1,
+oder auf eine Karte klicken/tippen). Unter den Karten steht, was der Kämpfer kann. Wählen beide denselben, bekommt Spieler 2 eine andere Farbe.
 Im Training wählst du erst dich, dann den Dummy. Nach dem Match: „Rematch“ (gleiche Kämpfer) oder
 „Charakterwahl“. Online sieht jeder, was der andere gerade wählt.
 
@@ -35,15 +38,15 @@ Im Training wählst du erst dich, dann den Dummy. Nach dem Match: „Rematch“ 
 | Laufen/Springen/Ducken  | W A S D   | Pfeiltasten               | Steuerkreuz / Stick  | Steuerkreuz links     |
 | Schneller Angriff       | **Linksklick** (oder F) | Nummernblock 1 (oder `,`) | X / □  | **L**                 |
 | Starker Angriff (Kick)  | **Rechtsklick** (oder G) | Nummernblock 2 (oder `.`) | Y / △ | **S**                 |
-| Special (Energieball)   | **Leertaste** (oder H) | Nummernblock 3 (oder `-`) | B / ○   | **★**                 |
+| Special (je Kämpfer)    | **Leertaste** (oder H) | Nummernblock 3 (oder `-`) | B / ○   | **★**                 |
 | Pause                   | Esc oder P| Esc oder P                | Start                | ❚❚ oben in der Mitte  |
 
 - **Blocken:** vom Gegner weg halten. Geduckt blocken gegen tiefe Tritte, stehend gegen Sprung-Angriffe.
 - **Unten + Angriff** = tiefer Angriff (der starke tiefe Tritt wirft um). **In der Luft angreifen** = Sprung-Angriff.
 - **In der Luft lenken:** Während eines Sprungs mit links/rechts die Flugbahn ändern.
 - **Doppelsprung (nur Wiesel):** in der Luft nochmal „hoch“ drücken.
-- Die Tastenbelegung steht klein unten im Bild und im Hauptmenü. Unten links im Menü steht die Version (z. B. v1.1.0).
-- Der schnelle Schlag lässt sich bei Kontakt direkt in den Energieball abbrechen (Combo!).
+- Die Tastenbelegung steht klein unten im Bild und im Hauptmenü. Unten links im Menü steht die Version (z. B. v2.1.0).
+- Der schnelle Schlag lässt sich bei Kontakt direkt ins Special abbrechen (Combo!).
 - **Training:** `T` wechselt den Dummy (stehen, ducken, blocken, springen), `F1` zeigt die Hitboxen.
   Oben links siehst du Schaden und „Frame-Vorteil“ deines letzten Treffers.
 - Zwei Gamepads im Lokalmodus: Gamepad 1 steuert Spieler 1, Gamepad 2 steuert Spieler 2.
@@ -195,9 +198,11 @@ Alle Spielwerte stehen in **`src/config.js`** – mit Kommentaren. Datei mit ein
 öffnen, Zahl ändern, speichern, im Browser **F5** drücken.
 
 **Wichtig:** Das Spiel läuft mit **60 Frames pro Sekunde**. „30 Frames“ heißt also eine halbe Sekunde.
+Alle Werte gelten fürs **Grundtempo** – `GAME_SPEED` rechnet sie aufs eingestellte Tempo um.
 
 | Wo                        | Wert                          | Bedeutung |
 |---------------------------|-------------------------------|-----------|
+| `GAME_SPEED`              | 1.1                           | **Spieltempo** für alles (1 = Grundtempo, 1.1 = 10 % schneller). Sprunghöhe und Reichweiten bleiben gleich, nur schneller |
 | `FIGHTER.MAX_HP`          | 100                           | Lebenspunkte (Grundwert – Charaktere können eigene haben) |
 | `FIGHTER.WALK_FORWARD` / `WALK_BACK` | 3.4 / 2.6         | Lauftempo (Pixel pro Frame) |
 | `FIGHTER.JUMP_VELOCITY`   | 15                            | Sprungkraft (höher = höher springen) |
@@ -212,11 +217,14 @@ Alle Spielwerte stehen in **`src/config.js`** – mit Kommentaren. Datei mit ein
 |                           | `hitstop`                     | kurzes Standbild beim Treffer („Wucht“) |
 |                           | `knockback`                   | wie weit der Gegner zurückrutscht |
 |                           | `hitbox`                      | wo und wie groß der Angriff trifft (mit F1 im Training sichtbar) |
-| `MOVES.special.cooldown`  | 120                           | Wartezeit bis zum nächsten Energieball (120 = 2 Sekunden) |
-| `MOVES.stomp` / `MOVES.dashKick` |                        | Erdstoß (Fels) und Blitztritt (Wiesel) |
-| `CHARACTERS.fels.hp` usw. | 108 / 95                      | Leben je Charakter |
-| `CHARACTERS.….damageScale`| 108 / 95                      | Schaden in Prozent (100 = normal) |
-| `CHARACTERS.….size`       | 1.05 / 0.98                   | Körpergröße – ändert auch die Reichweite! |
+| `MOVES.special.cooldown`  | 120                           | Wartezeit bis zum nächsten Energieball (120 = 2 Sekunden im Grundtempo) |
+| `MOVES.stomp` / `dashKick` / `counter` / `arc` / `grab` |  | Specials von Fels, Wiesel, Luchs, Komet und Anker |
+| `MOVES.counter.active`    | 17                            | so lange fängt Luchs' Konter Angriffe ab |
+| `MOVES.arc.speedNear` / `speed` / `speedFar` | 3 / 5 / 7  | Wurfweite des Sterns (zurück / neutral / vorne gehalten) |
+| `MOVES.grab.damage`       | 15                            | Schaden des Klammergriffs |
+| `CHARACTERS.fels.hp` usw. | 95 … 115                      | Leben je Charakter |
+| `CHARACTERS.….damageScale`| 90 … 108                      | Schaden in Prozent (100 = normal) |
+| `CHARACTERS.….size`       | 0.98 … 1.06                   | Körpergröße – ändert auch die Reichweite! |
 | `CHARACTERS.….moves`      |                               | einzelne Angriffe eines Charakters ändern, z. B. `{ lightStand: { startup: 3 } }` |
 | `CHARACTERS.wiesel.airJumps` | 1                          | Sprünge in der Luft (0 = kein Doppelsprung) |
 | `MOVES.special.speed`     | 6.5                           | Flugtempo des Energieballs |
@@ -256,7 +264,7 @@ npm test
 Das prüft u. a.:
 - **Determinismus:** gleiche Eingaben → exakt gleicher Spielzustand (auch über 10.000 Frames mit
   Zufallseingaben). Das ist die Grundlage fürs Online-Spiel.
-- **Kampfsystem:** Treffer-Timing, Blocken, Energieball, K.O., Zeitablauf, Best of 3, Training.
+- **Kampfsystem:** Treffer-Timing, Blocken, Specials aller Kämpfer, Spieltempo, K.O., Zeitablauf, Best of 3, Training.
 - **Netcode:** zwei simulierte Geräte mit schlechtem Netz (Verzögerung, verlorene und vertauschte Pakete),
   Desync-Erkennung und Rematch.
 
@@ -265,7 +273,8 @@ Einzeln geht z. B. `node tests/determinism.test.js`.
 Für Neugierige (über den lokalen Server öffnen):
 - <http://localhost:8080/tests/online-test.html> – zwei Spiele verbinden sich übers Internet und zwei
   Computer-Kämpfer spielen gegeneinander. Zeigt Ping, Prüfsummen und Desyncs.
-- <http://localhost:8080/tests/poses.html> – alle Körperhaltungen der Figur mit Hitboxen.
+- <http://localhost:8080/tests/poses.html> – alle Körperhaltungen der Figur mit Hitboxen
+  (`?char=luchs` für einen anderen Kämpfer, `?lineup` zeigt alle Kämpfer in beiden Farben).
 - <http://localhost:8080/?debug> – Spiel mit eingeblendeten Hitboxen und Debug-Infos.
 
 ---
@@ -275,8 +284,8 @@ Für Neugierige (über den lokalen Server öffnen):
 - **Alles selbst gemacht:** Figuren, Hintergrund, Effekte und Logo werden komplett per Code gezeichnet;
   alle Sounds werden live per WebAudio erzeugt. Es gibt keine fremden Bilder, Sprites, Schriftdateien,
   Musik- oder Sprachaufnahmen. Benutzt werden nur Standard-Schriften des Geräts.
-- **Eigener Stil:** Farben der Kämpfer, der einhändige Energieball-Wurf und das Neon-Logo sind bewusst
-  nicht an bekannte Spielfiguren oder Logos angelehnt. Begriffe wie „FIGHT!“, „K.O.“ oder „Energieball“
+- **Eigener Stil:** Alle sechs Kämpfer, ihre Farben, der einhändige Energieball-Wurf und das Neon-Logo
+  sind bewusst nicht an bekannte Spielfiguren oder Logos angelehnt. Begriffe wie „FIGHT!“, „K.O.“ oder „Energieball“
   sind allgemeine Genre-Begriffe.
 - **Fremder Code:** nur [PeerJS](https://github.com/peers/peerjs) (MIT-Lizenz), wird beim Online-Spiel
   vom CDN geladen; dazu der kostenlose PeerJS-Vermittlungsserver.

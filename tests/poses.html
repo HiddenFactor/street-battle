@@ -10,15 +10,18 @@
   </style>
 </head>
 <body>
-  <p>Alle Posen der Figur mit Hitboxen (rot) und Hurtboxen (grün). Nur zum Entwickeln – öffne diese Seite über den lokalen Server.</p>
+  <p>Alle Posen der Figur mit Hitboxen (rot) und Hurtboxen (grün). Nur zum Entwickeln – öffne diese Seite über den lokalen Server.
+     <code>?char=luchs</code> = anderer Charakter · <code>?lineup</code> = alle Charaktere in beiden Farben nebeneinander.</p>
   <canvas id="c" width="960" height="540"></canvas>
   <script type="module">
     import { Renderer, FLOOR_Y } from '../src/render.js';
     import { SUB, charData } from '../src/sim.js';
-    import { MOVES } from '../src/config.js';
+    import { MOVES, CHARACTER_ORDER } from '../src/config.js';
 
-    // ?char=fels oder ?char=wiesel zeigt einen anderen Charakter
+    // ?char=fels, ?char=wiesel, ?char=luchs ... zeigt einen anderen Charakter
     const charId = new URLSearchParams(location.search).get('char') || 'funke';
+    const cd = charData(charId);
+    const sp = cd.moves[cd.special];
     const canvas = document.getElementById('c');
     const r = new Renderer(canvas);
     r.resize(960, 540, 1.5);
@@ -41,7 +44,10 @@
       ['heavyCrouch', atk('heavyCrouch')],
       ['lightAir', atk('lightAir', { y: 9000 })],
       ['heavyAir', atk('heavyAir', { y: 9000 })],
-      [charId === 'fels' ? 'stomp' : charId === 'wiesel' ? 'dashKick' : 'special', atk(charId === 'fels' ? 'stomp' : charId === 'wiesel' ? 'dashKick' : 'special')],
+      [cd.special, atk(cd.special)],
+      // Folge-Angriff des Konters bzw. der Wurf nach einem Griff
+      ...(sp.counter ? [[sp.counter, atk(sp.counter)]] : []),
+      ...(sp.grab ? [['Griff: Wurf', atk(cd.special, { hasHit: true, moveFrame: sp.startup + sp.active + 4 })]] : []),
       ['hitstun', { state: 'hitstun', stun: 10 }],
       ['block', { state: 'blockstun' }],
       ['block geduckt', { state: 'blockstun', crouching: true }],
@@ -51,15 +57,46 @@
       ['win', { state: 'win' }],
     ];
 
+    // ?lineup: alle Charaktere groß nebeneinander – oben Farbe 1 (Grundhaltung), unten Farbe 2 (Special)
+    function drawLineup(time) {
+      r.time = time / 1000;
+      ctx.setTransform(r.scale, 0, 0, r.scale, 0, 0);
+      ctx.fillStyle = '#2a2036';
+      ctx.fillRect(0, 0, 960, 540);
+      CHARACTER_ORDER.forEach((id, k) => {
+        for (const row of [0, 1]) {
+          const c = charData(id);
+          const f = { ...base, char: id, ...(row ? atk(c.special, { char: id, crouching: false }) : {}) };
+          if (row) f.moveFrame = Math.max(0, c.moves[c.special].startup - 1);
+          // Farbe 2 = beide Spieler haben denselben Charakter
+          const other = { ...base, char: row ? id : 'none', x: 99999 };
+          const state = { hitstop: 0, phase: 'fight', fighters: row ? [other, f] : [f, other], projectiles: [] };
+          ctx.save();
+          ctx.translate(80 + k * 160, row ? 515 : 245);
+          ctx.scale(0.95, 0.95);
+          ctx.translate(0, -FLOOR_Y);
+          r.fx[row].pose = null;
+          r.fx[row].trail = [];
+          r.drawFighter(state, row, 0.016);
+          ctx.restore();
+          ctx.fillStyle = '#ddd';
+          ctx.font = '12px system-ui';
+          ctx.textAlign = 'center';
+          if (!row) ctx.fillText(id, 80 + k * 160, 262);
+        }
+      });
+      requestAnimationFrame(drawLineup);
+    }
+
     function draw(time) {
       r.time = time / 1000;
       ctx.setTransform(r.scale, 0, 0, r.scale, 0, 0);
       ctx.fillStyle = '#2a2036';
       ctx.fillRect(0, 0, 960, 540);
       cells.forEach(([label, props], k) => {
-        const col = k % 7;
-        const row = Math.floor(k / 7);
-        const cx = 70 + col * 137;
+        const col = k % 8;
+        const row = Math.floor(k / 8);
+        const cx = 62 + col * 119;
         const floor = 168 + row * 178;
         const f = { ...base, ...props };
         const state = { hitstop: 0, phase: 'fight', fighters: [f, { ...base, char: 'none', x: 99999 }], projectiles: [] };
@@ -81,7 +118,7 @@
       });
       requestAnimationFrame(draw);
     }
-    requestAnimationFrame(draw);
+    requestAnimationFrame(new URLSearchParams(location.search).has('lineup') ? drawLineup : draw);
     void SUB;
   </script>
 </body>
