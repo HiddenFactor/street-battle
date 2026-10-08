@@ -8,6 +8,7 @@
 
 import { KEYS, GAMEPAD } from './config.js';
 import { UP, DOWN, LEFT, RIGHT, LIGHT, HEAVY, SPECIAL } from './buttons.js';
+import { charData } from './sim.js';
 
 export * from './buttons.js';
 
@@ -251,12 +252,24 @@ export class BotInput {
     const fwd = me.facing > 0 ? RIGHT : LEFT;
     const back = me.facing > 0 ? LEFT : RIGHT;
     const dist = Math.abs(me.x - other.x) / 100;
+    // Wo passt das Special? Geschosse aus der Ferne, Sprint-Tritt aus mittlerem Abstand,
+    // Griff und Konter aus der Nähe.
+    const cd = charData(me);
+    const sp = cd.moves[cd.special];
+    const spRange = sp.projectile ? 'far' : sp.dashSpeed ? 'mid' : 'near';
     if (this.timer-- <= 0) {
       const r = this.rand();
       this.timer = 6 + Math.floor(this.rand() * 18);
-      if (dist > 260) this.hold = r < 0.55 ? fwd : r < 0.7 ? SPECIAL : r < 0.8 ? UP | fwd : 0;
-      else if (dist > 140) this.hold = r < 0.4 ? fwd : r < 0.55 ? back : r < 0.7 ? UP | fwd : r < 0.8 ? HEAVY : DOWN | back;
-      else this.hold = r < 0.25 ? LIGHT : r < 0.4 ? HEAVY : r < 0.5 ? DOWN | LIGHT : r < 0.58 ? DOWN | HEAVY : r < 0.75 ? back : r < 0.85 ? DOWN | back : UP | back;
+      if (dist > 260) {
+        this.hold = r < 0.55 ? fwd : r < 0.7 ? (spRange === 'far' ? SPECIAL : fwd) : r < 0.8 ? UP | fwd : 0;
+        // Sternwurf: Weite zufällig wählen
+        if (this.hold === SPECIAL && sp.speedFar) this.hold |= this.rand() < 0.5 ? fwd : 0;
+      } else if (dist > 140) {
+        this.hold = r < 0.4 ? fwd : r < 0.55 ? back : r < 0.7 ? UP | fwd : r < 0.8 ? HEAVY : r < 0.88 && (spRange === 'mid' || sp.speedNear) ? SPECIAL : DOWN | back;
+        if (this.hold === SPECIAL && sp.speedNear) this.hold |= back;
+      } else {
+        this.hold = r < 0.25 ? LIGHT : r < 0.4 ? HEAVY : r < 0.5 ? DOWN | LIGHT : r < 0.58 ? DOWN | HEAVY : r < 0.75 ? back : r < 0.85 ? DOWN | back : r < 0.93 && spRange === 'near' ? SPECIAL : UP | back;
+      }
     }
     let mask = this.hold;
     // Angriffsknöpfe nur kurz antippen, damit neue Drücke erkannt werden

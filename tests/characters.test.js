@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createMatch, step, checksum, SUB, charData } from '../src/sim.js';
-import { CHARACTERS, CHARACTER_ORDER, MOVES, FIGHTER } from '../src/config.js';
+import { CHARACTERS, CHARACTER_ORDER, MOVES, FIGHTER, GAME_SPEED } from '../src/config.js';
 import { UP, DOWN, LEFT, RIGHT, LIGHT, HEAVY, SPECIAL } from '../src/buttons.js';
 
 function fightState(chars, options = {}) {
@@ -74,6 +74,7 @@ test('Fels: Erdstoß ist tief – stehend geblockt trifft er, geduckt nicht', ()
   const standing = run(place(fightState(['fels', 'funke']), 250, 700), 200, (t) => [t === 0 ? SPECIAL : 0, RIGHT]);
   assert.ok(standing.events.find((e) => e.type === 'special' && e.kind === 'wave'), 'keine Druckwelle');
   assert.ok(standing.events.find((e) => e.type === 'hit' && e.proj), 'stehendes Blocken sollte nicht reichen');
+  // Funke steht an der Wand (kann nicht zurückweichen)
   const crouching = run(place(fightState(['fels', 'funke']), 250, 700), 200, (t) => [t === 0 ? SPECIAL : 0, DOWN | RIGHT]);
   assert.ok(crouching.events.find((e) => e.type === 'block' && e.proj), 'geduckt nicht geblockt');
 });
@@ -151,6 +152,7 @@ test('alle Paarungen: deterministisch und nur Ganzzahlen', () => {
         for (const [i1, i2] of inputs) {
           s = step(s, i1, i2);
           for (const f of s.fighters) for (const v of Object.values(f)) assert.ok(isInt(v), `${a}/${b}: Kommazahl`);
+          for (const p of s.projectiles) for (const v of Object.values(p)) assert.ok(isInt(v), `${a}/${b}: Kommazahl im Geschoss`);
         }
         return checksum(s);
       };
@@ -174,4 +176,128 @@ test('Lauftempo unterscheidet sich', () => {
   assert.ok(dist('wiesel') > dist('funke') && dist('funke') > dist('fels'));
   void LEFT;
   void HEAVY;
+});
+
+// ---------------------------------------------------------------------
+// Spieltempo
+// ---------------------------------------------------------------------
+test('Spieltempo: Sprung ist kürzer, aber gleich hoch', () => {
+  let top = 0;
+  const { events } = run(place(fightState(['funke', 'funke']), 300, 800), 80, (t, s) => {
+    top = Math.max(top, s.fighters[0].y);
+    return [t < 2 ? UP : 0, 0];
+  });
+  const jump = events.find((e) => e.type === 'jump' && e.p === 0);
+  const land = events.find((e) => e.type === 'land' && e.p === 0);
+  const airtime = land.tick - jump.tick;
+  const baseAirtime = (2 * FIGHTER.JUMP_VELOCITY) / FIGHTER.GRAVITY;
+  // Höhe bei schrittweiser Rechnung: v · (v + g) / 2g
+  const baseHeight = (FIGHTER.JUMP_VELOCITY * (FIGHTER.JUMP_VELOCITY + FIGHTER.GRAVITY)) / (2 * FIGHTER.GRAVITY);
+  assert.ok(Math.abs(airtime - baseAirtime / GAME_SPEED) <= 2, `Flugzeit ${airtime}, erwartet ~${(baseAirtime / GAME_SPEED).toFixed(1)}`);
+  assert.ok(Math.abs(top / SUB - baseHeight) / baseHeight < 0.04, `Sprunghöhe ${top / SUB}, erwartet ~${baseHeight}`);
+});
+
+test('Spieltempo: Laufen ist schneller, Angriffe kürzer', () => {
+  const { s } = run(place(fightState(['funke', 'funke']), 100, 900), 60, () => [RIGHT, 0]);
+  const walked = (s.fighters[0].x - 100 * SUB) / SUB;
+  const expected = FIGHTER.WALK_FORWARD * 60 * GAME_SPEED;
+  assert.ok(Math.abs(walked - expected) < 3, `gelaufen ${walked}, erwartet ~${expected}`);
+  const m = charData('funke').moves.heavyStand;
+  const base = MOVES.heavyStand;
+  assert.ok(Math.abs(m.total - (base.startup + base.active + base.recovery) / GAME_SPEED) <= 1.5);
+});
+
+// ---------------------------------------------------------------------
+// Luchs: Konter
+// ---------------------------------------------------------------------
+test('Luchs: Konter fängt einen Schlag ab und schlägt zurück', () => {
+  const s0 = place(fightState(['luchs', 'funke']), 400, 500);
+  const { s, events } = run(s0, 60, (t) => [t === 0 ? SPECIAL : 0, t === 2 ? LIGHT : 0]);
+  const counter = events.find((e) => e.type === 'counter');
+  assert.ok(counter && !counter.proj, 'kein Konter');
+  assert.equal(s.fighters[0].hp, CHARACTERS.luchs.hp, 'Luchs hat Schaden bekommen');
+  const hit = events.find((e) => e.type === 'hit' && e.p === 1);
+  assert.ok(hit && hit.knockdown, 'Konterschlag trifft nicht oder wirft nicht um');
+});
+
+test('Luchs: Konter schluckt Geschosse', () => {
+  const s0 = place(fightState(['luchs', 'funke']), 250, 700);
+  const { s, events } = run(s0, 120, (t, st) => {
+    const ball = st.projectiles[0];
+    const near = ball && Math.abs(ball.x - st.fighters[0].x) < 120 * SUB;
+    return [near ? SPECIAL : 0, t === 0 ? SPECIAL : 0];
+  });
+  const counter = events.find((e) => e.type === 'counter');
+  assert.ok(counter && counter.proj, 'Geschoss nicht abgefangen');
+  assert.ok(!events.find((e) => e.type === 'hit'), 'trotzdem getroffen');
+  assert.equal(s.fighters[0].hp, CHARACTERS.luchs.hp);
+});
+
+test('Luchs: Konter braucht Erholung, und ein Griff schlägt den Konter', () => {
+  const m = charData('luchs').moves.counter;
+  assert.ok(m.recovery >= 10, 'Konter braucht Erholung');
+  const s0 = place(fightState(['luchs', 'anker']), 400, 470);
+  const { events } = run(s0, 60, (t) => [t === 0 ? SPECIAL : 0, t === 3 ? SPECIAL : 0]);
+  assert.ok(!events.find((e) => e.type === 'counter'), 'Griff wurde gekontert');
+  assert.ok(events.find((e) => e.type === 'hit' && e.grab && e.p === 0), 'Griff hat nicht gepackt');
+});
+
+// ---------------------------------------------------------------------
+// Anker: Klammergriff
+// ---------------------------------------------------------------------
+test('Anker: Griff geht durch den Block und wirft um', () => {
+  const s0 = place(fightState(['anker', 'funke']), 400, 470);
+  // Funke hält "zurück" (rechts) = Blockhaltung
+  const { s, events } = run(s0, 60, (t) => [t === 0 ? SPECIAL : 0, RIGHT]);
+  const hit = events.find((e) => e.type === 'hit' && e.grab);
+  assert.ok(hit && hit.knockdown, 'Griff hat nicht gepackt');
+  assert.ok(!events.find((e) => e.type === 'block'), 'Griff wurde geblockt');
+  assert.ok(s.fighters[1].hp < FIGHTER.MAX_HP);
+});
+
+test('Anker: Griff packt keine springenden Gegner', () => {
+  const s0 = place(fightState(['anker', 'funke']), 400, 470);
+  const { events } = run(s0, 60, (t) => [t === 6 ? SPECIAL : 0, t < 2 ? UP : 0]);
+  assert.ok(events.find((e) => e.type === 'swing' && e.move === 'grab'), 'kein Griff versucht');
+  assert.ok(!events.find((e) => e.type === 'hit' && e.grab), 'springenden Gegner gepackt');
+});
+
+test('Anker: Griff hat kurze Reichweite und lange Erholung', () => {
+  const m = charData('anker').moves.grab;
+  assert.ok(m.recovery >= 20);
+  const s0 = place(fightState(['anker', 'funke']), 300, 600);
+  const { events } = run(s0, 60, (t) => [t === 0 ? SPECIAL : 0, 0]);
+  assert.ok(!events.find((e) => e.type === 'hit'), 'Griff reicht zu weit');
+});
+
+// ---------------------------------------------------------------------
+// Komet: Sternwurf
+// ---------------------------------------------------------------------
+test('Komet: Sternwurf kommt von oben – geduckt trifft er, stehend wird geblockt', () => {
+  // Funke steht an der Wand (kann nicht zurückweichen)
+  const crouching = run(place(fightState(['komet', 'funke']), 560, 920), 160, (t) => [t === 0 ? SPECIAL : 0, DOWN | RIGHT]);
+  assert.ok(crouching.events.find((e) => e.type === 'special' && e.kind === 'arc'), 'kein Sternwurf');
+  assert.ok(crouching.events.find((e) => e.type === 'hit' && e.proj), 'geduckt sollte nicht reichen');
+  const standing = run(place(fightState(['komet', 'funke']), 560, 920), 160, (t) => [t === 0 ? SPECIAL : 0, RIGHT]);
+  assert.ok(standing.events.find((e) => e.type === 'block' && e.proj), 'stehend nicht geblockt');
+});
+
+test('Komet: zurück = kurz, vorne = weit; der Stern zerplatzt am Boden', () => {
+  const landing = (dir) => {
+    const { events } = run(place(fightState(['komet', 'funke']), 150, 900), 160, (t) => [(t === 0 ? SPECIAL : 0) | dir, 0]);
+    const fade = events.find((e) => e.type === 'fade' && e.ground);
+    assert.ok(fade, 'Stern landet nicht');
+    return fade.x;
+  };
+  const near = landing(LEFT);
+  const mid = landing(0);
+  const far = landing(RIGHT);
+  assert.ok(near < mid && mid < far, `Weiten: ${near} / ${mid} / ${far}`);
+});
+
+test('die neuen Charaktere springen nicht doppelt', () => {
+  for (const id of ['luchs', 'komet', 'anker']) {
+    const r = run(place(fightState([id, 'funke']), 300, 800), 90, (t) => [t < 2 || t === 20 ? UP : 0, 0]);
+    assert.equal(r.events.filter((e) => e.type === 'jump' && e.p === 0).length, 1, `${id} springt doppelt`);
+  }
 });

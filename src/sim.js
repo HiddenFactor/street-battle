@@ -19,12 +19,18 @@
 //   6. Zähler weiterzählen, Rundenablauf
 // =====================================================================
 
-import { STAGE, FIGHTER, MOVES, CHARACTERS, CHARACTER_ORDER, COMBAT, ROUND, TRAINING } from './config.js';
+import { STAGE, FIGHTER, MOVES, CHARACTERS, CHARACTER_ORDER, COMBAT, ROUND, TRAINING, GAME_SPEED } from './config.js';
 import { UP, DOWN, LEFT, RIGHT, LIGHT, HEAVY, SPECIAL, BUTTONS, ALL_INPUTS } from './buttons.js';
 
 export const SUB = 100; // 1 Pixel = 100 Subpixel
 
 const px = (v) => Math.round(v * SUB);
+// Spieltempo (GAME_SPEED) einrechnen: Geschwindigkeiten × Tempo, Beschleunigungen × Tempo²
+// (gleiche Sprunghöhe und Wege, nur schneller), Dauern in Frames ÷ Tempo.
+const SPEED = GAME_SPEED > 0 ? GAME_SPEED : 1;
+const vel = (v) => px(v * SPEED);
+const acc = (v) => px(v * SPEED * SPEED);
+const dur = (n) => (n > 0 ? Math.max(1, Math.round(n / SPEED)) : 0);
 const toward0 = (v, amount) => (v > amount ? v - amount : v < -amount ? v + amount : 0);
 const sign = (v) => (v > 0 ? 1 : v < 0 ? -1 : 0);
 const toPx = (v) => Math.trunc(v / SUB);
@@ -41,14 +47,22 @@ const K = {
   wallMin: px(STAGE.WALL_MARGIN),
   wallMax: px(STAGE.WIDTH - STAGE.WALL_MARGIN),
   startX: STAGE.START_X.map(px),
-  gravity: px(FIGHTER.GRAVITY),
-  friction: px(FIGHTER.FRICTION),
-  launchV: px(COMBAT.LAUNCH_VELOCITY),
-  launchX: px(COMBAT.LAUNCH_PUSH),
+  gravity: acc(FIGHTER.GRAVITY),
+  friction: acc(FIGHTER.FRICTION),
+  launchV: vel(COMBAT.LAUNCH_VELOCITY),
+  launchX: vel(COMBAT.LAUNCH_PUSH),
+  jumpSquat: dur(FIGHTER.JUMP_SQUAT),
+  landing: dur(FIGHTER.LANDING_RECOVERY),
+  knockdownTime: dur(COMBAT.KNOCKDOWN_TIME),
+  getupTime: dur(COMBAT.GETUP_TIME),
+  blockHitstopLess: dur(COMBAT.BLOCK_HITSTOP_LESS),
   proximity: px(COMBAT.PROXIMITY_GUARD),
   wallTouch: px(4),
-  roundFrames: ROUND.TIME_SECONDS * 60,
+  roundFrames: ROUND.TIME_SECONDS * 60, // Rundenzeit bleibt in echten Sekunden
 };
+
+/** Umgerechnete Zeiten (Frames) und Schwerkraft – für Grafik und Tests */
+export const TIMING = { speed: SPEED, gravity: K.gravity, jumpSquat: K.jumpSquat, getup: K.getupTime };
 
 export const DEFAULT_CHAR = CHARACTER_ORDER[0];
 
@@ -59,20 +73,35 @@ function buildMoves(def) {
   const moves = {};
   for (const [id, base] of Object.entries(MOVES)) {
     const m = { ...base, ...((def.moves && def.moves[id]) || {}) };
-    moves[id] = {
+    const t = {
       ...m,
       id,
-      damage: Math.max(1, Math.round((m.damage * damageScale) / 100)),
+      // Dauern (Frames) im eingestellten Spieltempo
+      startup: dur(m.startup),
+      active: dur(m.active),
+      recovery: dur(m.recovery),
+      hitstun: dur(m.hitstun),
+      blockstun: dur(m.blockstun),
+      hitstop: dur(m.hitstop),
+      cooldown: dur(m.cooldown || 0),
+      lifetime: dur(m.lifetime || 0),
+      damage: m.damage ? Math.max(1, Math.round((m.damage * damageScale) / 100)) : 0,
       chip: m.chip ? Math.max(1, Math.round((m.chip * damageScale) / 100)) : 0,
-      total: m.startup + m.active + m.recovery,
-      knockback: px(m.knockback || 0),
-      blockPush: px(m.blockPush || 0),
-      speed: px(m.speed || 0),
-      dashSpeed: px(m.dashSpeed || 0),
+      // Geschwindigkeiten (Subpixel pro Frame)
+      knockback: vel(m.knockback || 0),
+      blockPush: vel(m.blockPush || 0),
+      speed: vel(m.speed || 0),
+      speedNear: vel(m.speedNear || 0),
+      speedFar: vel(m.speedFar || 0),
+      rise: vel(m.rise || 0),
+      gravity: acc(m.gravity || 0),
+      dashSpeed: vel(m.dashSpeed || 0),
       hitbox: box(m.hitbox, size),
       hurt: box(m.hurt, size),
       ball: box(m.ball, size),
     };
+    t.total = t.startup + t.active + t.recovery;
+    moves[id] = t;
   }
   return moves;
 }
@@ -86,14 +115,14 @@ for (const [id, def] of Object.entries(CHARACTERS)) {
     id,
     size,
     maxHp: v('hp', FIGHTER.MAX_HP),
-    walkF: px(v('walkForward', FIGHTER.WALK_FORWARD)),
-    walkB: px(v('walkBack', FIGHTER.WALK_BACK)),
-    jumpV: px(v('jumpVelocity', FIGHTER.JUMP_VELOCITY)),
-    jumpX: px(v('jumpForward', FIGHTER.JUMP_FORWARD)),
-    airAccel: px(v('airControl', FIGHTER.AIR_CONTROL || 0)),
-    airMax: px(v('airMaxSpeed', FIGHTER.AIR_MAX_SPEED || 0)),
+    walkF: vel(v('walkForward', FIGHTER.WALK_FORWARD)),
+    walkB: vel(v('walkBack', FIGHTER.WALK_BACK)),
+    jumpV: vel(v('jumpVelocity', FIGHTER.JUMP_VELOCITY)),
+    jumpX: vel(v('jumpForward', FIGHTER.JUMP_FORWARD)),
+    airAccel: acc(v('airControl', FIGHTER.AIR_CONTROL || 0)),
+    airMax: vel(v('airMaxSpeed', FIGHTER.AIR_MAX_SPEED || 0)),
     airJumps: v('airJumps', 0),
-    airJumpV: px(v('airJumpVelocity', FIGHTER.JUMP_VELOCITY)),
+    airJumpV: vel(v('airJumpVelocity', FIGHTER.JUMP_VELOCITY)),
     special: def.special || 'special',
     push: {
       stand: box(FIGHTER.PUSHBOX.stand, size),
@@ -135,7 +164,7 @@ function newFighter(i, charId) {
     moveFrame: 0,       // Frame innerhalb des Angriffs (0 = erster Frame)
     hasHit: false,      // hat der Angriff schon getroffen/wurde geblockt?
     stun: 0,            // Rest-Frames für land/hitstun/blockstun/knockdown/getup
-    cooldown: 0,        // Rest-Frames bis zum nächsten Energieball
+    cooldown: 0,        // Rest-Frames bis zum nächsten Special
     prevInput: 0,       // Eingabe des letzten Frames (zum Erkennen neuer Knopfdrücke)
     bufferBtn: 0,       // gemerkter Angriffsknopf (Eingabepuffer)
     bufferTimer: 0,
@@ -258,9 +287,23 @@ function readDirs(input, facing) {
 const ACTIONABLE = { idle: true, walk: true, crouch: true };
 const BLOCK_STATES = { idle: true, walk: true, crouch: true, blockstun: true };
 const INVULNERABLE = { knockdown: true, getup: true, ko: true };
+// Wer gerade getroffen wurde oder blockt, kann nicht gegriffen werden
+const GRAB_IMMUNE = { hitstun: true, blockstun: true, knockdown: true, getup: true, ko: true };
 
 function isAirborne(f) {
   return f.y > 0 || f.vy !== 0 || f.state === 'air';
+}
+
+function grabbable(f) {
+  return !isAirborne(f) && !GRAB_IMMUNE[f.state];
+}
+
+// Steht der Kämpfer gerade im Konter (aktive Frames)? Dann den Konter-Angriff liefern.
+function counterWindow(f) {
+  if (f.state !== 'attack' || !f.move) return null;
+  const m = C(f).moves[f.move];
+  if (!m.counter || f.moveFrame < m.startup || f.moveFrame >= m.startup + m.active) return null;
+  return m;
 }
 
 function pushboxOf(f) {
@@ -427,12 +470,12 @@ function think(s, i, input) {
     case 'knockdown':
       if (!isAirborne(f) && f.stun <= 0) {
         setState(f, 'getup');
-        f.stun = COMBAT.GETUP_TIME;
-        f.invuln = COMBAT.GETUP_TIME;
+        f.stun = K.getupTime;
+        f.invuln = K.getupTime;
       }
       break;
     case 'jumpsquat':
-      if (f.stateFrame >= FIGHTER.JUMP_SQUAT) {
+      if (f.stateFrame >= K.jumpSquat) {
         if (d.h !== 0) f.jumpDir = d.h; // Richtung darf im Anlauf noch gewählt werden
         setState(f, 'air');
         f.vy = c.jumpV;
@@ -537,7 +580,7 @@ function land(s, i) {
   if (f.state === 'air' || f.state === 'attack') {
     setState(f, 'land');
     f.move = null;
-    f.stun = FIGHTER.LANDING_RECOVERY;
+    f.stun = K.landing;
     f.vx = 0;
     s.events.push({ type: 'land', p: i, x: toPx(f.x) });
   } else if (f.state === 'knockdown') {
@@ -545,7 +588,7 @@ function land(s, i) {
     if (f.hp <= 0) {
       setState(f, 'ko');
     } else {
-      f.stun = COMBAT.KNOCKDOWN_TIME;
+      f.stun = K.knockdownTime;
     }
     s.events.push({ type: 'down', p: i, x: toPx(f.x) });
   }
@@ -615,7 +658,7 @@ function updateFacing(s) {
 }
 
 // ---------------------------------------------------------------------
-// Projektile (Energieball, Druckwelle)
+// Projektile (Energieball, Druckwelle, Sternwurf)
 // ---------------------------------------------------------------------
 function spawnProjectiles(s) {
   for (let i = 0; i < 2; i++) {
@@ -624,14 +667,21 @@ function spawnProjectiles(s) {
     const m = C(f).moves[f.move];
     if (!m.projectile || f.moveFrame !== m.startup) continue;
     const ball = m.ball;
+    // Weite wählen (Sternwurf): zurück halten = kurz, vorne halten = weit
+    let speed = m.speed;
+    const d = readDirs(f.prevInput, f.facing);
+    if (d.back && m.speedNear) speed = m.speedNear;
+    if (d.fwd && m.speedFar) speed = m.speedFar;
     s.projectiles.push({
       id: s.nextId++,
       owner: i,
       move: f.move,         // welcher Angriff (für die Trefferwerte)
-      kind: m.projectile,   // Aussehen: 'ball' oder 'wave'
+      kind: m.projectile,   // Aussehen: 'ball', 'wave' oder 'arc'
       x: f.x + f.facing * ball.x,
       y: f.y + ball.y,
-      vx: f.facing * m.speed,
+      vx: f.facing * speed,
+      vy: m.rise,           // nur beim Bogenwurf ungleich 0
+      g: m.gravity,         // Schwerkraft des Geschosses (0 = fliegt gerade)
       w: ball.w,
       h: ball.h,
       life: m.lifetime,
@@ -648,7 +698,14 @@ function moveProjectiles(s) {
   const keep = [];
   for (const p of s.projectiles) {
     p.x += p.vx;
+    p.y += p.vy;
+    p.vy -= p.g;
     p.life--;
+    if (p.g > 0 && p.y <= 0) {
+      // Bogenwurf landet: zerplatzt am Boden
+      s.events.push({ type: 'fade', kind: p.kind, ground: true, x: toPx(p.x), y: 0 });
+      continue;
+    }
     if (p.life <= 0 || p.x < -p.w || p.x > K.width + p.w) {
       s.events.push({ type: 'fade', x: toPx(p.x), y: toPx(p.y + Math.trunc(p.h / 2)) });
       continue;
@@ -681,6 +738,8 @@ function collectHits(s) {
     const a = s.fighters[i];
     const hb = hitboxOf(a);
     if (!hb) continue;
+    // Griffe packen keine springenden und keine gerade getroffenen/blockenden Gegner
+    if (C(a).moves[a.move].grab && !grabbable(s.fighters[1 - i])) continue;
     for (const hurt of hurtboxesOf(s.fighters[1 - i])) {
       const at = overlap(hb, hurt);
       if (at) {
@@ -732,10 +791,24 @@ function applyHit(s, h) {
   const holdsAway = dirs.h !== 0 && dirs.h === h.dir; // weg vom Angreifer halten
   const crouch = dirs.down;
   const levelOk = m.level === 'mid' || (m.level === 'low' && crouch) || (m.level === 'overhead' && !crouch);
-  const blocked = BLOCK_STATES[d.state] && !isAirborne(d) && holdsAway && levelOk;
+  const blocked = !m.grab && BLOCK_STATES[d.state] && !isAirborne(d) && holdsAway && levelOk;
   const ex = toPx(h.at.x);
   const ey = toPx(h.at.y);
   const minHp = s.training ? 1 : 0;
+
+  // Konter (Luchs): Schläge, Tritte und Geschosse werden abgefangen – Griffe nicht
+  const cm = m.grab ? null : counterWindow(d);
+  if (cm) {
+    s.hitstop = Math.max(s.hitstop, cm.hitstop);
+    s.events.push({ type: 'counter', p: h.defender, a: h.attacker, x: ex, y: ey, proj: !h.melee });
+    if (h.melee) {
+      d.facing = -h.dir; // zum Angreifer drehen und zurückschlagen
+      startMove(s, h.defender, cm.counter);
+    } else {
+      toIdle(d); // Geschoss geschluckt – sofort wieder handlungsfähig
+    }
+    return;
+  }
 
   if (blocked) {
     setState(d, 'blockstun');
@@ -747,7 +820,7 @@ function applyHit(s, h) {
     d.vx = h.dir * m.blockPush;
     if (m.chip) d.hp = Math.max(minHp, d.hp - m.chip);
     if (h.melee && atWall(d)) a.vx = -h.dir * m.blockPush;
-    s.hitstop = Math.max(s.hitstop, Math.max(2, m.hitstop - COMBAT.BLOCK_HITSTOP_LESS));
+    s.hitstop = Math.max(s.hitstop, Math.max(2, m.hitstop - K.blockHitstopLess));
     s.events.push({
       type: 'block', p: h.defender, a: h.attacker, x: ex, y: ey, proj: !h.melee,
       adv: h.melee && !m.air ? m.blockstun - (m.total - a.moveFrame) : null,
@@ -779,7 +852,7 @@ function applyHit(s, h) {
   s.hitstop = Math.max(s.hitstop, d.hp <= 0 ? COMBAT.KO_HITSTOP : m.hitstop);
   s.events.push({
     type: 'hit', p: h.defender, a: h.attacker, x: ex, y: ey, dmg, combo: d.combo,
-    heavy: m.damage >= 10, proj: !h.melee, knockdown: falls, ko: d.hp <= 0,
+    heavy: m.damage >= 10, proj: !h.melee, grab: !!m.grab, knockdown: falls, ko: d.hp <= 0,
     adv: h.melee && !m.air && !falls ? m.hitstun - (m.total - a.moveFrame) : null,
   });
 }

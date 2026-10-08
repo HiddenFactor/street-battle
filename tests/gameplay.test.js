@@ -8,8 +8,8 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createMatch, step, SUB } from '../src/sim.js';
-import { MOVES, ROUND, FIGHTER, TRAINING, STAGE } from '../src/config.js';
+import { createMatch, step, SUB, charData, DEFAULT_CHAR, TIMING } from '../src/sim.js';
+import { ROUND, FIGHTER, TRAINING, STAGE } from '../src/config.js';
 import { UP, DOWN, LEFT, RIGHT, LIGHT, HEAVY, SPECIAL } from '../src/buttons.js';
 
 // Match starten und das "RUNDE 1"-Intro überspringen
@@ -38,6 +38,9 @@ function run(s, ticks, inputs) {
   }
   return { s, events };
 }
+
+// Angriffswerte im eingestellten Spieltempo (GAME_SPEED ist schon eingerechnet)
+const MOVES = charData(DEFAULT_CHAR).moves;
 
 const first = (events, type) => events.find((e) => e.type === type);
 const total = (m) => m.startup + m.active + m.recovery;
@@ -245,12 +248,12 @@ test('Luftsteuerung: in der Luft rechts halten lenkt nach rechts, nie schneller 
   let maxSpeed = 0;
   const steered = run(s0, 60, (t, s) => {
     maxSpeed = Math.max(maxSpeed, Math.abs(s.fighters[0].vx));
-    return [t < 2 ? UP : t > FIGHTER.JUMP_SQUAT + 1 ? RIGHT : 0, 0];
+    return [t < 2 ? UP : t > TIMING.jumpSquat + 1 ? RIGHT : 0, 0];
   });
   assert.equal(landingX(plain.events), 300, 'ohne Lenken landet der senkrechte Sprung am Absprungort');
   if (FIGHTER.AIR_CONTROL > 0) {
     assert.ok(landingX(steered.events) > 350, `Lenken wirkt nicht (Landung bei ${landingX(steered.events)})`);
-    assert.ok(maxSpeed <= Math.round(FIGHTER.AIR_MAX_SPEED * SUB), `zu schnell: ${maxSpeed}`);
+    assert.ok(maxSpeed <= charData(DEFAULT_CHAR).airMax, `zu schnell: ${maxSpeed}`);
   } else {
     assert.equal(landingX(steered.events), 300);
   }

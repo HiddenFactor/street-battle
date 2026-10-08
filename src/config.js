@@ -9,6 +9,8 @@
 //            30 Frames sind also eine halbe Sekunde.
 //   Pixel  = Bildpunkte der Arena (die Arena ist 960 × 540 Pixel groß).
 //   px/F   = Pixel pro Frame (Geschwindigkeit). Kommazahlen sind erlaubt.
+//   Alle Frame- und Tempo-Werte gelten fürs Grundtempo. GAME_SPEED (unten)
+//   rechnet sie beim Laden auf das eingestellte Spieltempo um.
 //
 // Boxen (Hitbox = trifft, Hurtbox = kann getroffen werden):
 //   x = Abstand der Box-Mitte nach vorne (in Blickrichtung)
@@ -20,7 +22,17 @@
 // Spielwerte. Das Spiel prüft das beim Verbinden.
 // =====================================================================
 
-export const GAME_VERSION = '2.0.0';
+export const GAME_VERSION = '2.1.0';
+
+// ---------------------------------------------------------------------
+// Spieltempo
+// ---------------------------------------------------------------------
+// 1 = Grundtempo, 1.1 = alles 10 % schneller: Laufen, Springen, Angriffe,
+// Geschosse, Trefferpausen, Abklingzeiten. Sprunghöhe, Reichweiten und
+// Abstände bleiben gleich – es geht nur schneller. Die Rundenzeit (99 s)
+// und die Einblendungen bleiben gleich lang.
+// Tipp: in kleinen Schritten ändern (z. B. 1.05 oder 1.15).
+export const GAME_SPEED = 1.1;
 
 // ---------------------------------------------------------------------
 // Arena
@@ -85,6 +97,10 @@ export const FIGHTER = {
 // chip      Schaden, den man auch beim Blocken bekommt
 // hitbox    wo der Angriff trifft
 // hurt      zusätzliche verwundbare Box (ausgestreckter Arm/Bein)
+// grab      true = Griff: geht durch den Block, packt aber keine springenden
+//           oder gerade getroffenen/blockenden Gegner
+// counter   Konter: fängt in den aktiven Frames Angriffe ab, dann folgt der
+//           hier genannte Angriff
 //
 // Frame-Vorteil (für Profis): hitstun minus (restliche active + recovery).
 // Positiv = man ist nach dem Treffer zuerst wieder dran.
@@ -177,6 +193,58 @@ export const MOVES = {
     hitbox: { x: 62, y: 70, w: 70, h: 40 },
     hurt: { x: 44, y: 70, w: 60, h: 34 },
   },
+  // Luchs: Konter – fängt in den aktiven Frames jeden Schlag und Tritt ab und
+  // schlägt sofort zurück (Konterschlag). Geschosse werden einfach geschluckt.
+  // Gegen Griffe hilft der Konter nicht. Daneben = kurz angreifbar.
+  counter: {
+    name: 'Konter',
+    counter: 'counterStrike', // dieser Angriff folgt, wenn der Konter klappt
+    startup: 3, active: 17, recovery: 20,
+    cooldown: 90,
+    damage: 0, chip: 0, hitstun: 0, blockstun: 0,
+    hitstop: 14,          // Standbild, wenn der Konter klappt
+    knockback: 0, blockPush: 0, level: 'mid',
+    hitbox: null,
+    hurt: null,
+  },
+  counterStrike: {
+    name: 'Konterschlag',
+    startup: 2, active: 4, recovery: 14,
+    damage: 12, chip: 0, hitstun: 0, blockstun: 14, hitstop: 10,
+    knockback: 6, blockPush: 5, level: 'mid', knockdown: true,
+    hitbox: { x: 66, y: 70, w: 92, h: 70 },
+    hurt: { x: 48, y: 84, w: 50, h: 30 },
+  },
+  // Komet: Sternwurf – ein Stern fliegt im hohen Bogen und fällt von oben herab.
+  // Nur STEHEND blockbar. Weite wählen: zurück halten = kurz, vorne halten = weit.
+  arc: {
+    name: 'Sternwurf',
+    projectile: 'arc',
+    startup: 14, active: 1, recovery: 22,
+    cooldown: 95,
+    speed: 5,             // Tempo seitwärts (px/F) ...
+    speedNear: 3,         // ... mit "zurück" gehalten
+    speedFar: 7,          // ... mit "vorne" gehalten
+    rise: 9,              // Wurf nach oben (px/F)
+    gravity: 0.35,        // Schwerkraft des Sterns (px/F pro Frame)
+    lifetime: 200,
+    damage: 10, chip: 2, hitstun: 18, blockstun: 14, hitstop: 8,
+    knockback: 4.5, blockPush: 4, level: 'overhead',
+    ball: { x: 40, y: 150, w: 34, h: 34 },
+    hurt: { x: 30, y: 110, w: 40, h: 34 },
+  },
+  // Anker: Klammergriff – packt den Gegner und wirft ihn zu Boden. Blocken hilft nicht!
+  // Daneben gegriffen steht man aber lange ungeschützt da.
+  grab: {
+    name: 'Klammergriff',
+    grab: true,
+    startup: 6, active: 3, recovery: 30,
+    cooldown: 60,
+    damage: 15, chip: 0, hitstun: 0, blockstun: 0, hitstop: 14,
+    knockback: 6, blockPush: 0, level: 'mid', knockdown: true,
+    hitbox: { x: 58, y: 40, w: 56, h: 90 },
+    hurt: { x: 44, y: 76, w: 52, h: 36 },
+  },
 };
 
 // ---------------------------------------------------------------------
@@ -219,7 +287,7 @@ export const CHARACTERS = {
     name: 'FELS',
     role: 'Kraftpaket',
     info: 'Langsam, aber zäh und hart. Der Erdstoß rollt über den Boden – nur geduckt blockbar.',
-    hp: 108,
+    hp: 110,
     size: 1.05,
     walkForward: 2.7,
     walkBack: 2.1,
@@ -257,7 +325,7 @@ export const CHARACTERS = {
     airMaxSpeed: 5.4,
     airJumps: 1,
     airJumpVelocity: 12.5,
-    damageScale: 95,
+    damageScale: 90,
     special: 'dashKick',
     moves: {
       lightStand: { startup: 3, recovery: 7 },
@@ -274,10 +342,80 @@ export const CHARACTERS = {
       ],
     },
   },
+  luchs: {
+    name: 'LUCHS',
+    role: 'Konter',
+    info: 'Wartet ab und schlägt zurück: Der Konter fängt Schläge, Tritte und Geschosse ab.',
+    hp: 98,
+    size: 1,
+    walkForward: 3.6,
+    walkBack: 2.9,
+    damageScale: 100,
+    special: 'counter',
+    moves: {
+      heavyStand: { startup: 8 },
+    },
+    stats: { Leben: 3, Kraft: 3, Tempo: 4, Sprung: 3 },
+    look: {
+      build: 'normal', head: 'ponytail', torso: 'tank',
+      palettes: [
+        { gi: '#2f8a57', giDark: '#1a4f32', pants: '#2b2f3a', belt: '#14161c', band: '#f0e2c0', skin: '#e8b48a', hair: '#c4702a', glow: '#7dffb0' },
+        { gi: '#2f6fb5', giDark: '#1b3f69', pants: '#3a2f2b', belt: '#14161c', band: '#ffe08a', skin: '#b97f58', hair: '#1d1a1a', glow: '#6ecbff' },
+      ],
+    },
+  },
+  komet: {
+    name: 'KOMET',
+    role: 'Fernkämpfer',
+    info: 'Wirft Sterne im hohen Bogen – nur stehend blockbar. Mit zurück/vorne die Weite wählen.',
+    hp: 102,
+    size: 0.98,
+    jumpVelocity: 15.5,
+    airControl: 0.8,
+    damageScale: 100,
+    special: 'arc',
+    moves: {},
+    stats: { Leben: 3, Kraft: 3, Tempo: 3, Sprung: 4 },
+    look: {
+      build: 'normal', head: 'hood', torso: 'hoodie',
+      palettes: [
+        { gi: '#2c3d94', giDark: '#182259', pants: '#23262f', belt: '#14161c', band: '#ffd23b', skin: '#c68b5e', hair: '#141010', glow: '#ffe066' },
+        { gi: '#b8bccb', giDark: '#73778a', pants: '#3b3346', belt: '#14161c', band: '#ff5a8a', skin: '#f1c29a', hair: '#7a4a22', glow: '#ff8ad8' },
+      ],
+    },
+  },
+  anker: {
+    name: 'ANKER',
+    role: 'Ringer',
+    info: 'Groß, zäh und langsam. Der Klammergriff geht durch jeden Block – daneben wird es gefährlich.',
+    hp: 115,
+    size: 1.06,
+    walkForward: 2.5,
+    walkBack: 2.0,
+    jumpVelocity: 13,
+    jumpForward: 3.4,
+    airControl: 0.4,
+    airMaxSpeed: 3.6,
+    damageScale: 104,
+    special: 'grab',
+    moves: {
+      lightStand: { startup: 5, recovery: 10 },
+      heavyStand: { startup: 11, recovery: 21 },
+      heavyCrouch: { startup: 12 },
+    },
+    stats: { Leben: 5, Kraft: 4, Tempo: 1, Sprung: 1 },
+    look: {
+      build: 'heavy', head: 'beanie', torso: 'overall',
+      palettes: [
+        { gi: '#c4473a', giDark: '#7a2a20', pants: '#35507a', belt: '#1b1d22', band: '#e6b422', skin: '#d6a07c', hair: '#4a2a14', hat: '#2f3b4a', glow: '#ffa54f' },
+        { gi: '#3e7c5a', giDark: '#22452f', pants: '#5a4a3a', belt: '#1b1d22', band: '#c0c6cc', skin: '#9e6b4a', hair: '#141414', hat: '#d9822b', glow: '#5fe3c0' },
+      ],
+    },
+  },
 };
 
-// Reihenfolge im Auswahl-Bildschirm
-export const CHARACTER_ORDER = ['funke', 'fels', 'wiesel'];
+// Reihenfolge im Auswahl-Bildschirm (3 pro Reihe)
+export const CHARACTER_ORDER = ['funke', 'fels', 'wiesel', 'luchs', 'komet', 'anker'];
 
 // ---------------------------------------------------------------------
 // Kampfregeln
@@ -386,5 +524,5 @@ export const LOOK = {
 // Nur diese Teile bestimmen den Spielablauf. Online müssen sie bei beiden
 // Spielern gleich sein (wird beim Verbinden per Prüfsumme verglichen).
 export function gameplayConfig() {
-  return { GAME_VERSION, STAGE, FIGHTER, MOVES, CHARACTERS, COMBAT, ROUND, TRAINING };
+  return { GAME_VERSION, GAME_SPEED, STAGE, FIGHTER, MOVES, CHARACTERS, COMBAT, ROUND, TRAINING };
 }
