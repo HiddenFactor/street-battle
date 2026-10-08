@@ -50,11 +50,16 @@ export class OnlineSession {
     this.failed = false;
     this.gotHello = false;
     this.ping = -1;
+    this.pings = [];          // letzte Ping-Messungen (für die Verzögerungs-Empfehlung)
+    this.localFps = 60;       // setzt main.js
+    this.remoteFps = 0;       // meldet der Gegner
+    this.waitPercent = 0;     // Anteil der Bilder, in denen auf den Gegner gewartet wurde
+    this.lastTicks = { ok: 0, waiting: 0 };
     this.remoteHidden = false;
     this.lastReceive = performance.now();
     this.lastAdvance = performance.now();
     this.placeholder = createMatch();
-    this.lockstep = new Lockstep({ isHost, send: (m) => net.send(m) });
+    this.lockstep = new Lockstep({ isHost, send: (m) => net.send(m), now: () => performance.now() });
     const me = this.localPlayer;
     this.input = botSeed
       ? new BotInput(botSeed, () => this.state.fighters[me], () => this.state.fighters[1 - me])
@@ -76,7 +81,13 @@ export class OnlineSession {
 
   sendPing() {
     if (this.failed) return;
-    this.net.send({ t: 'ping', ts: performance.now(), hid: document.hidden, v: GAME_VERSION, cfg: CONFIG_HASH });
+    this.net.send({ t: 'ping', ts: performance.now(), hid: document.hidden, fps: Math.round(this.localFps), v: GAME_VERSION, cfg: CONFIG_HASH });
+    // Wie oft musste in der letzten Sekunde gewartet werden?
+    const ls = this.lockstep;
+    const ok = ls.ticksOk - this.lastTicks.ok;
+    const waiting = ls.ticksWaiting - this.lastTicks.waiting;
+    this.lastTicks = { ok: ls.ticksOk, waiting: ls.ticksWaiting };
+    this.waitPercent = ok + waiting > 0 ? (100 * waiting) / (ok + waiting) : 0;
     if (performance.now() - this.lastReceive > NET.DISCONNECT_TIMEOUT_MS) this.fail('lost');
   }
 
@@ -89,6 +100,7 @@ export class OnlineSession {
         if (msg.t === 'ping') {
           this.net.send({ t: 'pong', ts: msg.ts });
           this.remoteHidden = !!msg.hid;
+          if (typeof msg.fps === 'number') this.remoteFps = msg.fps;
         }
         if (!this.gotHello) {
           if (msg.v !== GAME_VERSION || msg.cfg !== CONFIG_HASH) {
@@ -104,6 +116,8 @@ export class OnlineSession {
       case 'pong': {
         const rtt = performance.now() - msg.ts;
         this.ping = this.ping < 0 ? rtt : this.ping * 0.7 + rtt * 0.3;
+        this.pings.push(rtt);
+        if (this.pings.length > 10) this.pings.shift();
         break;
       }
       case 'bye':
@@ -119,7 +133,8 @@ export class OnlineSession {
 
   tick() {
     if (this.failed) return false;
-    const advanced = this.lockstep.tick(this.input.read());
+    const oneWayMs = this.ping > 0 ? this.ping / 2 : 0;
+    const advanced = this.lockstep.tick(this.input.read(), oneWayMs);
     for (const e of this.lockstep.takeEvents()) this.events.push(e);
     if (advanced) this.lastAdvance = performance.now();
     return advanced;
@@ -139,8 +154,33 @@ export class OnlineSession {
     return this.remoteHidden ? 'Gegner hat den Tab gewechselt' : 'Warte auf Gegner';
   }
 
+  /** Zeitabgleich: Faktor für die Länge eines Spielschritts (siehe lockstep.js) */
+  timeScale() {
+    return this.lockstep.timeScale();
+  }
+
+  /**
+   * Empfohlene Verzögerung: halber Ping + Schwankung + etwas Reserve, mindestens 2 Frames
+   * (1 Frame ist im WLAN fast immer zu knapp).
+   */
+  recommendedDelay() {
+    if (this.pings.length < 3) return 0;
+    const sorted = [...this.pings].sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    const jitter = sorted[sorted.length - 1] - sorted[0];
+    const frames = Math.ceil((median / 2 + jitter + 6) / (1000 / 60));
+    return Math.max(2, Math.min(NET.MAX_DELAY, frames));
+  }
+
   netInfo() {
-    return { ping: this.ping, delay: this.lockstep.delay };
+    return {
+      ping: this.ping,
+      delay: this.lockstep.delay,
+      recommended: this.recommendedDelay(),
+      waitPercent: this.waitPercent,
+      fps: this.localFps,
+      remoteFps: this.remoteFps,
+    };
   }
 
   rematch() {

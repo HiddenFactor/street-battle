@@ -1117,14 +1117,21 @@ export class Renderer {
       line: 5,
     });
 
-    // Online: Ping und Verzögerung
+    // Online: Ping, Verzögerung, Wartezeit und Bilder pro Sekunde beider Geräte
     if (view.net) {
       const n = view.net;
       ctx.font = '700 12px system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = n.ping < 0 ? '#ccc' : n.ping < 80 ? '#7dff9b' : n.ping < 150 ? '#ffd23b' : '#ff6b6b';
-      ctx.fillText(`Ping ${n.ping >= 0 ? Math.round(n.ping) + ' ms' : '–'} · Verzögerung ${n.delay}`, VIEW_W / 2, 112);
+      const bad = n.ping > 150 || n.waitPercent > 5 || (n.remoteFps && n.remoteFps < 50) || n.fps < 50;
+      const warn = n.ping > 80 || n.waitPercent > 1 || (n.remoteFps && n.remoteFps < 57) || n.fps < 57;
+      ctx.fillStyle = n.ping < 0 ? '#ccc' : bad ? '#ff6b6b' : warn ? '#ffd23b' : '#7dff9b';
+      const rec = n.recommended && n.recommended !== n.delay ? ` (empf. ${n.recommended})` : '';
+      const fpsText = `FPS ${Math.round(n.fps)}/${n.remoteFps ? Math.round(n.remoteFps) : '–'}`;
+      ctx.fillText(
+        `Ping ${n.ping >= 0 ? Math.round(n.ping) + ' ms' : '–'} · Verzögerung ${n.delay}${rec} · Warten ${Math.round(n.waitPercent)} % · ${fpsText}`,
+        VIEW_W / 2, 112,
+      );
     }
 
     // Training: Infos

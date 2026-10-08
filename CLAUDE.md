@@ -34,8 +34,11 @@ Bezeichner auf Englisch, Kommentare knapp und erklärend.
   Schritt ein (bei mehreren Schritten pro Bild gehen sonst welche verloren).
 - `checksum` = FNV-1a (`Math.imul`) über `JSON.stringify(state)`.
 
-### Spielschleife (src/main.js)
-- Fester Takt 60 Ticks/s per Accumulator, max. 5 Schritte pro Bild. Rendering ist davon getrennt.
+### Spielschleife (src/main.js, src/pacing.js)
+- Fester Takt 60 Ticks/s per `FrameClock` (pacing.js), max. 5 Schritte pro Bild. Rendering ist davon getrennt.
+- `FrameClock` rastet Bildzeiten nahe 1/60 s bzw. 1/120 s exakt ein und hält den Accumulator nach Start,
+  Pause und jedem Warten auf einem halben Schritt – sonst entsteht 0/2-Schritte-Ruckeln (Browser-Zeitstempel
+  sind auf 0,1 ms gerundet). Nicht durch eine einfache `acc += dt`-Schleife ersetzen (tests/pacing.test.js).
 - `session.tick()` gibt `false` zurück, wenn (online) eine Remote-Eingabe fehlt → es wird
   gewartet, nicht geraten.
 
@@ -59,6 +62,10 @@ Bezeichner auf Englisch, Kommentare knapp und erklärend.
   wenn beide Eingaben da sind. Pakete enthalten alle unbestätigten Eingaben (mind. die letzten 8)
   + `ack`. Alle 60 Ticks Prüfsumme; bei Abweichung startet der Host die Runde neu (`sync`).
 - lockstep.js ist transportunabhängig (Tests in Node mit simuliertem Netz), net.js kapselt PeerJS.
+- Zeitabgleich: `in`-Pakete tragen `lf` (eigener Frame); `advantage` = geglätteter Vorsprung in Frames
+  (inkl. Alter der Meldung über die injizierte Uhr `now`). `timeScale()` bremst/beschleunigt max. 3 %, erst ab
+  1 Frame Vorsprung (Bruchteile = fester Bildschirm-Versatz, nicht regelbar). main.js multipliziert damit die Schrittlänge.
+- HUD online: Ping, Verzögerung (+ Empfehlung aus Ping/Schwankung), Warten-%, FPS beider Geräte (`fps` im `ping`).
 - Protokoll robust gegen Verlust, Duplikate und Vertauschung (DataConnection `reliable:false` =
   ungeordnet). Steuer-Nachrichten (`sync`, `desync`, `rematch`) werden wiederholt, bis sie wirken.
   Alles ist Session-nummeriert; `sync` (Host → Gast) startet Spiel, Rematch und Desync-Neustart.

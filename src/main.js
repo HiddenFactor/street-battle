@@ -16,9 +16,8 @@ import { TouchControls, prefersTouch } from './touch.js';
 import { ERRORS } from './net.js';
 import { KEYS, LOOK, GAME_VERSION } from './config.js';
 import { controlsLines, menuHint } from './controls.js';
+import { FrameClock, STEP_MS } from './pacing.js';
 
-const STEP_MS = 1000 / 60;
-const MAX_STEPS_PER_FRAME = 5;
 const params = new URLSearchParams(location.search);
 // ?test: für automatische Tests – kein Auto-Pause, auch im versteckten Tab zeichnen
 const TEST_MODE = params.has('test');
@@ -35,8 +34,9 @@ const $ = (id) => document.getElementById(id);
 
 let session = new DemoSession();
 let paused = false;
-let acc = 0;
+const clock = new FrameClock(); // fester Spieltakt (siehe pacing.js)
 let last = performance.now();
+let fps = 60; // gemessene Bilder pro Sekunde (geglättet)
 let lastSecond = -1;
 let banner = null; // große Meldung im Bild (z. B. Desync)
 
@@ -73,7 +73,7 @@ function startSession(next) {
   clearInputLatch();
   session = next;
   paused = false;
-  acc = 0;
+  clock.reset();
   lastSecond = -1;
   ui.hide();
   updateChrome();
@@ -105,6 +105,7 @@ function pause() {
 function resume() {
   paused = false;
   clearInputLatch(); // Tasten, die während der Pause gedrückt wurden, nicht nachträglich auslösen
+  clock.reset();
   last = performance.now();
   ui.hide();
   updateChrome();
@@ -307,26 +308,22 @@ function frame(now) {
   last = now;
   if (dt > 250) dt = 250;
   if (dt < 0) dt = 0;
+  if (dt > 0) fps += (1000 / dt - fps) * 0.05;
+  if (session.kind === 'online') session.localFps = fps;
 
   ui.pollGamepads();
   pollPadPause();
   touch.setActive(session.kind !== 'demo' && !ui.isOpen());
 
   if (!paused && !window.streetBattle.freeze) {
-    acc += dt;
-    let steps = 0;
-    while (acc >= STEP_MS && steps < MAX_STEPS_PER_FRAME) {
-      const advanced = session.tick();
+    clock.add(dt);
+    // Online: Zeitabgleich mit dem Gegner (minimal schneller/langsamer), sonst 1
+    const scale = session.timeScale ? session.timeScale() : 1;
+    clock.run(() => {
+      const advanced = session.tick(); // false = Eingabe des Gegners fehlt noch → warten statt raten
       clearInputLatch(); // kurze Tipper wurden jetzt gelesen
-      if (!advanced) {
-        // Online: Eingabe des Gegners fehlt noch → warten statt raten
-        acc = Math.min(acc, STEP_MS);
-        break;
-      }
-      acc -= STEP_MS;
-      steps++;
-    }
-    if (steps >= MAX_STEPS_PER_FRAME) acc = 0;
+      return advanced;
+    }, scale);
   }
 
   handleEvents();

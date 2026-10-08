@@ -68,7 +68,12 @@ Start, ob Node.js im Netzwerk erreichbar sein darf, „Private Netzwerke“ erla
 4. Los geht's! Wer den Raum erstellt hat, ist links (türkis), der andere rechts (violett). Über deiner Figur
    steht „DU“.
 
-Oben in der Mitte siehst du den **Ping** (Laufzeit eurer Verbindung) und die **Eingabeverzögerung**.
+Oben in der Mitte steht eine Info-Zeile, z. B. `Ping 7 ms · Verzögerung 2 · Warten 0 % · FPS 60/60`:
+- **Ping:** Laufzeit eurer Verbindung (hin und zurück).
+- **Verzögerung:** eingestellte Eingabeverzögerung; steht dahinter `(empf. 3)`, ist ein anderer Wert besser.
+- **Warten:** wie oft das Spiel in der letzten Sekunde auf den Gegner warten musste. Über 1 % → Verzögerung erhöhen.
+- **FPS:** Bilder pro Sekunde bei dir / beim Gegner. Deutlich unter 60 → das Gerät ist zu langsam
+  (oft Stromsparmodus am Handy – den ausschalten). Grün = alles gut, gelb = grenzwertig, rot = schlecht.
 
 ### Wie funktioniert das?
 Eure Geräte verbinden sich **direkt** miteinander (Peer-to-Peer über WebRTC). Ein kostenloser
@@ -86,6 +91,10 @@ Im Online-Menü (Schieberegler, 1–8 Frames, Standard 3). Es gilt der Wert dess
 | 40–90 ms   | 3 (Standard) |
 | 90–150 ms  | 4–5 |
 | über 150 ms| 6–8 |
+
+Verzögerung 1 ist im WLAN fast immer zu knapp (kleine Schwankungen erzeugen dann Mini-Hänger) –
+nur für Kabelverbindungen gedacht. Das Spiel gleicht außerdem automatisch aus, dass zwei Geräte nie exakt
+gleich schnell laufen (leicht bremsen/beschleunigen statt anzuhalten).
 
 Zu niedrig = das Spiel stockt kurz („Warte auf Gegner …“). Zu hoch = die Figur reagiert träge.
 

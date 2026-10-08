@@ -14,8 +14,9 @@
 // Nachrichten (alle mit s = Session-Nummer):
 //   sync    {t,s,d,state,reason}  Host → Gast: neue Session ab diesem Zustand
 //                                  (Spielstart, Rematch, Neustart nach Desync)
-//   in      {t,s,a,f,i}           Eingaben ab Frame f (i = Liste von Masken),
-//                                  a = höchster lückenlos empfangener Gegner-Frame
+//   in      {t,s,a,f,i,lf}        Eingaben ab Frame f (i = Liste von Masken),
+//                                  a = höchster lückenlos empfangener Gegner-Frame,
+//                                  lf = aktueller Frame des Absenders (für den Zeitabgleich)
 //   cs      {t,s,f,h}             Prüfsumme des Zustands nach Frame f
 //   desync  {t,s,f}               Gast → Host: Prüfsummen weichen ab
 //   rematch {t,s}                 "Ich will ein Rematch"
@@ -27,14 +28,28 @@ import { ALL_INPUTS } from './buttons.js';
 
 const RESEND_TICKS = 30;     // Steuer-Nachrichten alle 0,5 s wiederholen, bis sie ankommen
 const MAX_INPUTS_PER_PACKET = 64;
+const STEP_MS = 1000 / 60;
+
+// Zeitabgleich: Zwei Geräte laufen nie exakt gleich schnell (Uhren, Bildschirm-Takt).
+// Ohne Abgleich läuft das schnellere voraus, bis es immer wieder kurz warten muss (Ruckler).
+// Deshalb wird das vorauslaufende Gerät minimal gebremst und das hinterherlaufende minimal
+// beschleunigt – höchstens um SYNC_MAX (3 %), das sieht man nicht.
+// Erst ab einem ganzen Frame Vorsprung eingreifen: Bruchteile davon sind nur der feste Versatz
+// zwischen den Bildschirm-Takten der beiden Geräte und lassen sich nicht wegregeln.
+const SYNC_SMOOTHING = 0.1;  // wie schnell der gemessene Vorsprung nachgeführt wird
+const SYNC_DEADBAND = 1;     // so viel Vorsprung (in Frames) ist egal
+const SYNC_GAIN = 0.01;      // Tempo-Änderung pro Frame Vorsprung (über der Totzone)
+const SYNC_MAX = 0.03;
 
 export class Lockstep {
   /**
    * isHost: Host = Spieler 1 (links), Gast = Spieler 2
    * send:   Funktion, die eine Nachricht (Objekt) an den Gegner schickt
+   * now:    Uhr in Millisekunden (Browser: performance.now; Tests: künstliche Zeit)
    */
-  constructor({ isHost, send }) {
+  constructor({ isHost, send, now }) {
     this.isHost = isHost;
+    this.now = now || (() => 0);
     this.local = isHost ? 0 : 1;
     this.send = send;
     this.session = 0;            // 0 = noch nicht gestartet
@@ -57,6 +72,11 @@ export class Lockstep {
     this.desyncCount = 0;
     this.checksumsCompared = 0;
     this.started = false;
+    this.remoteFrame = 0;        // zuletzt gemeldeter Frame des Gegners
+    this.remoteFrameAt = 0;      // wann diese Meldung ankam (ms)
+    this.advantage = 0;          // geglätteter Vorsprung vor dem Gegner (in Frames)
+    this.ticksOk = 0;            // Statistik: Ticks mit / ohne Fortschritt
+    this.ticksWaiting = 0;
   }
 
   // -------------------------------------------------------------------
@@ -88,14 +108,18 @@ export class Lockstep {
     this.rematchRemote = false;
     this.pendingDesync = null;
     this.started = true;
+    this.remoteFrame = 0;
+    this.remoteFrameAt = this.now();
+    this.advantage = 0;
     for (const e of this.state.events) this.events.push(e);
     this.events.push({ type: 'sync', reason: msg.reason, session: msg.s });
   }
 
   // -------------------------------------------------------------------
   // Ein Tick (60-mal pro Sekunde). Gibt true zurück, wenn simuliert wurde.
+  // oneWayMs: geschätzte Laufzeit einer Nachricht (halber Ping) für den Zeitabgleich
   // -------------------------------------------------------------------
-  tick(localInput) {
+  tick(localInput, oneWayMs = 0) {
     if (!this.session) return false;
     this.resendControl();
 
@@ -129,8 +153,28 @@ export class Lockstep {
       this.remoteInputs.delete(this.frame - 70);
     }
 
+    // Vorsprung vor dem Gegner messen (für timeScale): Frame des Gegners laut letzter Meldung,
+    // plus die Zeit, die seitdem vergangen ist (Laufzeit + Alter der Meldung)
+    const age = oneWayMs + Math.max(0, this.now() - this.remoteFrameAt);
+    const remoteNow = this.remoteFrame + Math.min(age, 10 * STEP_MS) / STEP_MS;
+    this.advantage += (this.frame - remoteNow - this.advantage) * SYNC_SMOOTHING;
+    if (advanced) this.ticksOk++;
+    else this.ticksWaiting++;
+
     this.sendInputs();
     return advanced;
+  }
+
+  /**
+   * Faktor für die Länge eines Spielschritts: > 1 = etwas langsamer (wir sind voraus),
+   * < 1 = etwas schneller (wir hängen hinterher), 1 = passt.
+   */
+  timeScale() {
+    if (!this.session) return 1;
+    const a = this.advantage;
+    if (Math.abs(a) < SYNC_DEADBAND) return 1;
+    const over = a - Math.sign(a) * SYNC_DEADBAND + Math.sign(a) * 0.5; // mind. ein halber Schritt
+    return 1 + Math.max(-SYNC_MAX, Math.min(SYNC_MAX, over * SYNC_GAIN));
   }
 
   sendInputs() {
@@ -138,7 +182,7 @@ export class Lockstep {
     from = Math.max(0, from, this.localScheduled - MAX_INPUTS_PER_PACKET + 1);
     const inputs = [];
     for (let f = from; f <= this.localScheduled; f++) inputs.push(this.localInputs.has(f) ? this.localInputs.get(f) : 0);
-    this.send({ t: 'in', s: this.session, a: this.remoteContig, f: from, i: inputs });
+    this.send({ t: 'in', s: this.session, a: this.remoteContig, f: from, i: inputs, lf: this.frame });
   }
 
   resendControl() {
@@ -167,6 +211,10 @@ export class Lockstep {
         }
         while (this.remoteInputs.has(this.remoteContig + 1) || this.remoteContig + 1 < this.frame) this.remoteContig++;
         if (msg.a > this.remoteAck) this.remoteAck = msg.a;
+        if (typeof msg.lf === 'number' && msg.lf > this.remoteFrame) {
+          this.remoteFrame = msg.lf;
+          this.remoteFrameAt = this.now();
+        }
         break;
       }
       case 'cs':
