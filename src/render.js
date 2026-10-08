@@ -481,6 +481,7 @@ export class Renderer {
     }
     this.drawParticles();
     this.drawForeground(cam);
+    if (view.select) this.drawSelectLabels(view.select);
     if (state && this.showBoxes) this.drawBoxes(state);
     ctx.restore();
 
@@ -666,9 +667,9 @@ export class Renderer {
 
     // Linienstärken je Körperbau
     const k = {
-      limb: size * (look.build === 'heavy' ? 1.25 : look.build === 'slim' ? 0.85 : 1),
-      body: size * (look.build === 'heavy' ? 1.3 : look.build === 'slim' ? 0.85 : 1),
-      head: size * (look.build === 'heavy' ? 1.05 : 1),
+      limb: size * (look.build === 'heavy' ? 1.35 : look.build === 'slim' ? 0.82 : 1),
+      body: size * (look.build === 'heavy' ? 1.45 : look.build === 'slim' ? 0.82 : 1),
+      head: size * (look.build === 'heavy' ? 1.08 : look.build === 'slim' ? 0.97 : 1),
       size,
     };
 
@@ -1463,6 +1464,21 @@ export class Renderer {
       ctx.fillText(lines.center, VIEW_W / 2, lines.left ? y - 16 : y);
     }
     ctx.restore();
+  }
+
+  // Charakterwahl: Namen unter den beiden großen Kämpfern
+  drawSelectLabels(sel) {
+    const ctx = this.ctx;
+    for (const i of [0, 1]) {
+      const x = i === 0 ? 150 : 810;
+      if (sel.dim[i]) {
+        ctx.fillStyle = 'rgba(5,3,12,0.6)';
+        ctx.fillRect(i === 0 ? 0 : 690, 0, 270, VIEW_H);
+      }
+      this.text(sel.labels[i], x, 238, 18, { fill: LOOK.PLAYERS[i].color, stroke: OUTLINE, line: 4 });
+      this.text(sel.names[i], x, 500, 30, { fill: '#fff', stroke: OUTLINE, line: 6 });
+      if (sel.ready[i]) this.text('BEREIT!', x, 528, 16, { fill: '#7dff9b', stroke: OUTLINE, line: 4 });
+    }
   }
 
   drawWaiting(text) {

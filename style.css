@@ -162,6 +162,61 @@ button[disabled] { filter: grayscale(1) brightness(0.7); cursor: default; }
 }
 .message-text { font-family: system-ui, sans-serif; font-weight: 600; max-width: 34em; line-height: 1.4; white-space: pre-line; }
 
+/* Charakterwahl */
+#screen-select {
+  justify-content: flex-start;
+  padding-top: 1.6em;
+  background: linear-gradient(180deg, rgba(8, 5, 20, 0.55), rgba(8, 5, 20, 0.15) 40%, rgba(8, 5, 20, 0.6));
+}
+.char-cards { display: flex; gap: 0.6em; margin-top: 0.4em; }
+.char-card {
+  position: relative;
+  width: 8.6em;
+  padding: 0.7em 0.6em 0.6em;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.25em;
+  color: var(--text);
+  text-align: left;
+  font-style: normal;
+  background: var(--panel);
+  border: 0.14em solid rgba(255, 255, 255, 0.15);
+  border-radius: 0.6em;
+  box-shadow: none;
+  transition: transform 0.12s, border-color 0.12s;
+}
+.char-card:hover { transform: translateY(-0.1em); }
+.char-card.sel1 { border-color: #ffb02e; box-shadow: 0 0 0.8em rgba(255, 176, 46, 0.45); }
+.char-card.sel2 { border-color: #5fd4ff; box-shadow: 0 0 0.8em rgba(95, 212, 255, 0.45); }
+.char-card.sel1.sel2 { border-color: #fff; box-shadow: -0.3em 0 0.8em rgba(255, 176, 46, 0.5), 0.3em 0 0.8em rgba(95, 212, 255, 0.5); }
+.char-name { font-size: 1.15em; letter-spacing: 0.06em; }
+.char-role { font-family: system-ui, sans-serif; font-size: 0.62em; font-weight: 700; color: var(--accent); font-style: normal; }
+.stats { display: grid; gap: 0.12em; margin: 0.15em 0; }
+.stat { display: flex; align-items: center; justify-content: space-between; gap: 0.3em; font-family: system-ui, sans-serif; font-size: 0.58em; font-weight: 700; color: var(--muted); }
+.stat i {
+  display: block;
+  width: 5.5em;
+  height: 0.55em;
+  border-radius: 0.3em;
+  background: linear-gradient(90deg, var(--accent) calc(var(--v) * 20%), rgba(255, 255, 255, 0.12) 0);
+}
+.char-special { font-family: system-ui, sans-serif; font-size: 0.62em; font-weight: 800; color: #fff; }
+.char-info { font-family: system-ui, sans-serif; font-size: 0.55em; font-weight: 600; color: var(--muted); line-height: 1.3; }
+.badge {
+  position: absolute;
+  top: -0.75em;
+  padding: 0.1em 0.45em;
+  border-radius: 0.4em;
+  font-size: 0.62em;
+  color: #120a16;
+  font-style: normal;
+}
+.badge.b1 { left: 0.4em; }
+.badge.b2 { right: 0.4em; }
+.badge[hidden] { display: none; }
+#screen-select .hint { font-size: 0.68em; }
+
 /* Online-Lobby */
 .online-grid { display: flex; gap: 1em; align-items: stretch; }
 .panel {

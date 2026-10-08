@@ -12,6 +12,7 @@ import { Sound } from './audio.js';
 import { attachKeyboard, onKeyPress, clearInputLatch, TouchInput, GamepadInput } from './input.js';
 import { LocalSession, TrainingSession, DemoSession } from './sessions.js';
 import { OnlineLobby } from './online.js';
+import { CharacterSelect } from './select.js';
 import { TouchControls, prefersTouch } from './touch.js';
 import { ERRORS } from './net.js';
 import { KEYS, LOOK, GAME_VERSION } from './config.js';
@@ -80,6 +81,7 @@ function startSession(next) {
 }
 
 function goToMenu() {
+  select.close();
   startSession(new DemoSession());
   ui.show('title');
   updateChrome();
@@ -127,7 +129,7 @@ function showMatchEnd(winner) {
 // Knöpfe oben: im Menü in die Ecke, im Spiel unter den Timer
 function updateChrome() {
   $('btn-pause').hidden = session.kind === 'demo';
-  document.body.classList.toggle('in-menu', session.kind === 'demo');
+  document.body.classList.toggle('in-menu', session.kind === 'demo' || select.active);
   $('btn-mute').textContent = sound.muted ? '🔇' : '🔊';
 }
 
@@ -150,13 +152,43 @@ function nextDummyMode() {
 }
 
 ui.onClick = () => sound.play('menu');
-ui.on('local', () => {
-  startSession(new LocalSession(touchInput));
-  if (touch.enabled) ui.toast('Spieler 2 braucht eine Tastatur (Pfeiltasten) oder ein Gamepad.', 4000);
+
+// ---------------------------------------------------------------------
+// Charakterwahl (vor jedem Match)
+// ---------------------------------------------------------------------
+const lastChars = { local: null, training: null, online: null }; // zuletzt gewählt
+const select = new CharacterSelect({ ui, sound, touch, onDone: onSelectDone });
+
+function openSelect(mode, initial) {
+  select.open({ mode, initial: initial || lastChars[mode] });
+  updateChrome();
+}
+
+function onSelectDone({ mode, chars }) {
+  lastChars[mode] = chars;
+  if (mode === 'local') {
+    startSession(new LocalSession(touchInput, chars));
+    if (touch.enabled) ui.toast('Spieler 2 braucht eine Tastatur (Pfeiltasten) oder ein Gamepad.', 4000);
+  } else {
+    startSession(new TrainingSession(touchInput, chars));
+    ui.toast(touch.enabled ? 'Training: Dummy und Hitboxen im Pause-Menü (❚❚)' : 'Training: T = Dummy wechseln, F1 = Hitboxen', 3500);
+  }
+}
+
+ui.on('local', () => openSelect('local'));
+ui.on('training', () => openSelect('training'));
+ui.on('select-back', () => {
+  if (session.kind === 'online') {
+    goToMenu(); // online: Zurück = Spiel verlassen
+    return;
+  }
+  select.close();
+  ui.show('title');
+  updateChrome();
 });
-ui.on('training', () => {
-  startSession(new TrainingSession(touchInput));
-  ui.toast(touch.enabled ? 'Training: Dummy und Hitboxen im Pause-Menü (❚❚)' : 'Training: T = Dummy wechseln, F1 = Hitboxen', 3500);
+ui.on('reselect', () => {
+  if (session.kind === 'online') session.enterSelect(true); // öffnet die Auswahl über das 'reselect'-Ereignis
+  else openSelect(session.kind, session.chars);
 });
 // ---------------------------------------------------------------------
 // Online
@@ -168,11 +200,14 @@ const lobby = new OnlineLobby({
   botSeed: parseInt(params.get('bot'), 10) || 0,
   onStart: (online) => {
     startSession(online);
-    ui.toast(online.isHost ? 'Verbunden! Du bist links (türkis).' : 'Verbunden! Du bist rechts (violett).', 3500);
+    select.open({ mode: 'online', session: online, initial: lastChars.online, bot: !!parseInt(params.get('bot'), 10) });
+    updateChrome();
+    ui.toast(online.isHost ? 'Verbunden! Du bist Spieler 1 (links).' : 'Verbunden! Du bist Spieler 2 (rechts).', 3500);
   },
   onFail: (key) => {
     const [title, text] = ERRORS[key] || ERRORS.closed;
     sound.play('error');
+    select.close();
     startSession(new DemoSession());
     ui.message(title, text, () => ui.show('title'));
   },
@@ -240,7 +275,9 @@ function toggleFullscreen() {
 // ---------------------------------------------------------------------
 attachKeyboard();
 onKeyPress((code) => {
-  if (KEYS.PAUSE.includes(code)) {
+  if (KEYS.PAUSE.includes(code) && select.active) {
+    ui.emit('select-back');
+  } else if (KEYS.PAUSE.includes(code)) {
     if (session.kind === 'online' && (ui.current === 'leave' || !ui.isOpen())) pause();
     else if (paused) resume();
     else if (!ui.isOpen()) pause();
@@ -287,7 +324,18 @@ function handleEvents() {
     if (!quiet) sound.onEvent(e);
     if (e.type === 'matchEnd' && !quiet) showMatchEnd(e.winner);
     if (e.type === 'desync') showBanner('DESYNC – Runde wird neu gestartet');
+    if (e.type === 'reselect') {
+      // Online: einer will neue Charaktere wählen → beide zurück zur Auswahl
+      select.open({ mode: 'online', session, initial: session.state.chars, bot: !!parseInt(params.get('bot'), 10) });
+      updateChrome();
+    }
     if (e.type === 'sync') {
+      if (select.active) {
+        select.close();
+        ui.hide();
+        updateChrome();
+      }
+      if (session.kind === 'online') lastChars.online = session.state.chars;
       if (e.reason === 'desync') showBanner('DESYNC – Runde wird neu gestartet');
       if (ui.current === 'end' || ui.current === 'leave') ui.hide();
     }
@@ -314,6 +362,7 @@ function frame(now) {
   ui.pollGamepads();
   pollPadPause();
   touch.setActive(session.kind !== 'demo' && !ui.isOpen());
+  if (select.active) select.update();
 
   if (!paused && !window.streetBattle.freeze) {
     clock.add(dt);
@@ -329,10 +378,11 @@ function frame(now) {
   handleEvents();
   runWaiters();
   if (!document.hidden || TEST_MODE) {
-    renderer.draw(session.state, {
-      hud: session.kind !== 'demo',
+    renderer.draw(select.active ? select.sceneState(renderer.time) : session.state, {
+      hud: session.kind !== 'demo' && !select.active,
+      select: select.active ? select.view() : null,
       kind: session.kind,
-      localPlayer: session.localPlayer,
+      localPlayer: select.active ? -1 : session.localPlayer,
       dummyLabel: session.kind === 'training' ? session.dummy.mode.label : null,
       net: session.netInfo ? session.netInfo() : null,
       waiting: session.waitingText ? session.waitingText() : null,
@@ -347,7 +397,7 @@ function frame(now) {
 // Tastenbelegung unten im Bild (nicht im Menü und nicht auf Touch-Geräten)
 let hintCache = { key: '', lines: null };
 function controlsHint() {
-  if (!LOOK.SHOW_CONTROLS || session.kind === 'demo' || touch.enabled) return null;
+  if (!LOOK.SHOW_CONTROLS || session.kind === 'demo' || touch.enabled || select.active) return null;
   const pad = pads.some((p) => p.connected());
   const key = session.kind + pad;
   if (hintCache.key !== key) hintCache = { key, lines: controlsLines(session.kind, pad) };

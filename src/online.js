@@ -7,7 +7,7 @@
 
 import { Lockstep } from './lockstep.js';
 import { createMatch, checksum } from './sim.js';
-import { GAME_VERSION, NET, KEYS, gameplayConfig } from './config.js';
+import { GAME_VERSION, NET, KEYS, CHARACTERS, CHARACTER_ORDER, gameplayConfig } from './config.js';
 import { KeyboardInput, GamepadInput, BotInput, combine } from './input.js';
 import { Net, ERRORS, loadPeerJS, makeRoomCode, cleanCode, isValidCode } from './net.js';
 
@@ -56,6 +56,11 @@ export class OnlineSession {
     this.waitPercent = 0;     // Anteil der Bilder, in denen auf den Gegner gewartet wurde
     this.lastTicks = { ok: 0, waiting: 0 };
     this.remoteHidden = false;
+    // Charakterwahl: erst wählen beide, dann startet der Host das Match
+    this.mode = 'select';                     // 'select' oder 'play'
+    this.localPick = { char: CHARACTER_ORDER[0], ready: false, n: 0 };
+    this.remotePick = null;                   // { char, ready, n } vom Gegner
+    this.reselectSession = -1;
     this.lastReceive = performance.now();
     this.lastAdvance = performance.now();
     this.placeholder = createMatch();
@@ -81,7 +86,12 @@ export class OnlineSession {
 
   sendPing() {
     if (this.failed) return;
-    this.net.send({ t: 'ping', ts: performance.now(), hid: document.hidden, fps: Math.round(this.localFps), v: GAME_VERSION, cfg: CONFIG_HASH });
+    const pk = this.localPick;
+    this.net.send({
+      t: 'ping', ts: performance.now(), hid: document.hidden, fps: Math.round(this.localFps),
+      v: GAME_VERSION, cfg: CONFIG_HASH,
+      pk: { c: pk.char, r: pk.ready, n: pk.n }, // Charakterwahl (falls eine Nachricht verloren ging)
+    });
     // Wie oft musste in der letzten Sekunde gewartet werden?
     const ls = this.lockstep;
     const ok = ls.ticksOk - this.lastTicks.ok;
@@ -101,6 +111,7 @@ export class OnlineSession {
           this.net.send({ t: 'pong', ts: msg.ts });
           this.remoteHidden = !!msg.hid;
           if (typeof msg.fps === 'number') this.remoteFps = msg.fps;
+          if (msg.pk) this.receivePick(msg.pk);
         }
         if (!this.gotHello) {
           if (msg.v !== GAME_VERSION || msg.cfg !== CONFIG_HASH) {
@@ -109,9 +120,15 @@ export class OnlineSession {
             return;
           }
           this.gotHello = true;
-          // Der Host startet das Spiel, sobald der Gast "Hallo" gesagt hat
-          if (this.isHost && !this.lockstep.session) this.lockstep.hostStart(createMatch(), this.delay, 'start');
+          this.maybeStart();
         }
+        break;
+      case 'pick':
+        this.receivePick(msg);
+        break;
+      case 'reselect':
+        // Gegner will neue Charaktere wählen (nur für die laufende Session)
+        if (msg.s === this.lockstep.session && this.mode === 'play') this.enterSelect(false);
         break;
       case 'pong': {
         const rtt = performance.now() - msg.ts;
@@ -131,11 +148,51 @@ export class OnlineSession {
     }
   }
 
+  // -------------------------------------------------------------------
+  // Charakterwahl online
+  // -------------------------------------------------------------------
+  /** Eigene Wahl melden (char = Charakter, ready = bestätigt) */
+  sendPick(char, ready) {
+    this.localPick = { char, ready, n: this.localPick.n + 1 };
+    this.net.send({ t: 'pick', c: char, r: ready, n: this.localPick.n });
+    this.maybeStart();
+  }
+
+  receivePick(msg) {
+    if (!CHARACTERS[msg.c] || typeof msg.n !== 'number') return;
+    if (this.remotePick && msg.n <= this.remotePick.n) return; // veraltet (Pakete können sich überholen)
+    this.remotePick = { char: msg.c, ready: !!msg.r, n: msg.n };
+    this.maybeStart();
+  }
+
+  /** Host: Sind beide bereit? Dann Match mit beiden Charakteren starten */
+  maybeStart() {
+    if (!this.isHost || this.mode !== 'select' || !this.gotHello) return;
+    if (!this.localPick.ready || !this.remotePick || !this.remotePick.ready) return;
+    this.mode = 'play';
+    const chars = [this.localPick.char, this.remotePick.char]; // Host = Spieler 1
+    this.lockstep.hostStart(createMatch({ chars }), this.delay, 'start');
+  }
+
+  /** Zurück zur Charakterwahl (nach einem Match). tell = dem Gegner Bescheid sagen */
+  enterSelect(tell = true) {
+    this.mode = 'select';
+    this.localPick = { ...this.localPick, ready: false, n: this.localPick.n + 1 };
+    if (this.remotePick) this.remotePick = { ...this.remotePick, ready: false };
+    if (tell) this.net.send({ t: 'reselect', s: this.lockstep.session });
+    this.net.send({ t: 'pick', c: this.localPick.char, r: false, n: this.localPick.n });
+    this.events.push({ type: 'reselect' });
+  }
+
   tick() {
     if (this.failed) return false;
     const oneWayMs = this.ping > 0 ? this.ping / 2 : 0;
     const advanced = this.lockstep.tick(this.input.read(), oneWayMs);
-    for (const e of this.lockstep.takeEvents()) this.events.push(e);
+    for (const e of this.lockstep.takeEvents()) {
+      // Gast: Das Match beginnt, sobald der Start-Zustand vom Host da ist
+      if (e.type === 'sync') this.mode = 'play';
+      this.events.push(e);
+    }
     if (advanced) this.lastAdvance = performance.now();
     return advanced;
   }
@@ -148,7 +205,7 @@ export class OnlineSession {
 
   /** Text für "Warte auf Gegner ..." (oder null, wenn alles läuft) */
   waitingText() {
-    if (this.failed) return null;
+    if (this.failed || this.mode === 'select') return null;
     if (!this.lockstep.session) return 'Verbinde';
     if (performance.now() - this.lastAdvance < NET.WAIT_MESSAGE_MS) return null;
     return this.remoteHidden ? 'Gegner hat den Tab gewechselt' : 'Warte auf Gegner';

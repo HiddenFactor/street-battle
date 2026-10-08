@@ -83,6 +83,17 @@
         </div>
       </section>
 
+      <!-- Charakterwahl -->
+      <section class="screen" id="screen-select">
+        <h2 id="select-title">Wähle deinen Kämpfer</h2>
+        <div class="char-cards" id="select-cards"></div>
+        <p class="status" id="select-status"></p>
+        <p class="hint" id="select-hint"></p>
+        <div class="menu row">
+          <button data-action="select-back" class="secondary">Zurück</button>
+        </div>
+      </section>
+
       <!-- Steuerung -->
       <section class="screen" id="screen-help">
         <h2>Steuerung</h2>
@@ -132,6 +143,7 @@
         <p id="end-score" class="score"></p>
         <div class="menu">
           <button data-action="rematch" id="btn-rematch">Rematch</button>
+          <button data-action="reselect" id="btn-reselect">Charakterwahl</button>
           <button data-action="quit" class="secondary">Hauptmenü</button>
         </div>
         <p class="status" id="end-status"></p>

@@ -6,9 +6,25 @@ und keinen Build-Schritt. Die einzige fremde Bibliothek ist [PeerJS](https://pee
 Online-Verbindung.
 
 **Modi:** Lokal (2 Spieler) · Online (Raumcode) · Training (gegen einen Dummy)
+**Kämpfer:** Funke (Allrounder) · Fels (Kraftpaket) · Wiesel (flink) – Auswahl vor jedem Match
 
 **▶ Jetzt spielen: <https://hiddenfactor.github.io/street-battle/>**
 (läuft über GitHub Pages – einfach diesen Link verschicken, der PC muss dafür nicht an sein)
+
+---
+
+## Die Kämpfer
+
+| | **Funke** – Allrounder | **Fels** – Kraftpaket | **Wiesel** – flink |
+|---|---|---|---|
+| Stärken | ausgewogen | mehr Leben, mehr Schaden, größere Reichweite | schnell, schnelle Angriffe, **Doppelsprung**, starkes Lenken in der Luft |
+| Schwächen | – | langsam, niedriger Sprung, träge Angriffe | weniger Leben und Schaden |
+| Special | **Energieball** – fliegt quer über die Arena | **Erdstoß** – Druckwelle über den Boden, nur **geduckt** blockbar (oder drüberspringen) | **Blitztritt** – Sprint-Tritt, wirft um; geblockt ist man aber lange angreifbar |
+
+**Auswahl:** Vor jedem Match wählen beide ihren Kämpfer (Spieler 1: A/D + F, Spieler 2: ←/→ + Num 1,
+oder auf eine Karte klicken/tippen). Wählen beide denselben, bekommt Spieler 2 eine andere Farbe.
+Im Training wählst du erst dich, dann den Dummy. Nach dem Match: „Rematch“ (gleiche Kämpfer) oder
+„Charakterwahl“. Online sieht jeder, was der andere gerade wählt.
 
 ---
 
@@ -25,6 +41,7 @@ Online-Verbindung.
 - **Blocken:** vom Gegner weg halten. Geduckt blocken gegen tiefe Tritte, stehend gegen Sprung-Angriffe.
 - **Unten + Angriff** = tiefer Angriff (der starke tiefe Tritt wirft um). **In der Luft angreifen** = Sprung-Angriff.
 - **In der Luft lenken:** Während eines Sprungs mit links/rechts die Flugbahn ändern.
+- **Doppelsprung (nur Wiesel):** in der Luft nochmal „hoch“ drücken.
 - Die Tastenbelegung steht klein unten im Bild und im Hauptmenü. Unten links im Menü steht die Version (z. B. v1.1.0).
 - Der schnelle Schlag lässt sich bei Kontakt direkt in den Energieball abbrechen (Combo!).
 - **Training:** `T` wechselt den Dummy (stehen, ducken, blocken, springen), `F1` zeigt die Hitboxen.
@@ -65,7 +82,7 @@ Start, ob Node.js im Netzwerk erreichbar sein darf, „Private Netzwerke“ erla
 3. **Dein Bruder:** „Online spielen“ → Code eintippen → **„Beitreten“**.
    Noch bequemer: Du drückst „Einladungslink kopieren“ und schickst ihm den Link – er tritt dann
    automatisch bei.
-4. Los geht's! Wer den Raum erstellt hat, ist links (türkis), der andere rechts (violett). Über deiner Figur
+4. Beide wählen ihren Kämpfer, dann geht's los! Wer den Raum erstellt hat, ist links, der andere rechts. Über deiner Figur
    steht „DU“.
 
 Oben in der Mitte steht eine Info-Zeile, z. B. `Ping 7 ms · Verzögerung 2 · Warten 0 % · FPS 60/60`:
@@ -181,7 +198,7 @@ Alle Spielwerte stehen in **`src/config.js`** – mit Kommentaren. Datei mit ein
 
 | Wo                        | Wert                          | Bedeutung |
 |---------------------------|-------------------------------|-----------|
-| `FIGHTER.MAX_HP`          | 100                           | Lebenspunkte |
+| `FIGHTER.MAX_HP`          | 100                           | Lebenspunkte (Grundwert – Charaktere können eigene haben) |
 | `FIGHTER.WALK_FORWARD` / `WALK_BACK` | 3.4 / 2.6         | Lauftempo (Pixel pro Frame) |
 | `FIGHTER.JUMP_VELOCITY`   | 15                            | Sprungkraft (höher = höher springen) |
 | `FIGHTER.GRAVITY`         | 0.75                          | Schwerkraft (höher = kürzere Sprünge) |
@@ -196,6 +213,12 @@ Alle Spielwerte stehen in **`src/config.js`** – mit Kommentaren. Datei mit ein
 |                           | `knockback`                   | wie weit der Gegner zurückrutscht |
 |                           | `hitbox`                      | wo und wie groß der Angriff trifft (mit F1 im Training sichtbar) |
 | `MOVES.special.cooldown`  | 120                           | Wartezeit bis zum nächsten Energieball (120 = 2 Sekunden) |
+| `MOVES.stomp` / `MOVES.dashKick` |                        | Erdstoß (Fels) und Blitztritt (Wiesel) |
+| `CHARACTERS.fels.hp` usw. | 108 / 95                      | Leben je Charakter |
+| `CHARACTERS.….damageScale`| 108 / 95                      | Schaden in Prozent (100 = normal) |
+| `CHARACTERS.….size`       | 1.05 / 0.98                   | Körpergröße – ändert auch die Reichweite! |
+| `CHARACTERS.….moves`      |                               | einzelne Angriffe eines Charakters ändern, z. B. `{ lightStand: { startup: 3 } }` |
+| `CHARACTERS.wiesel.airJumps` | 1                          | Sprünge in der Luft (0 = kein Doppelsprung) |
 | `MOVES.special.speed`     | 6.5                           | Flugtempo des Energieballs |
 | `COMBAT.COMBO_SCALING`    | 10                            | jeder weitere Combo-Treffer macht 10 % weniger Schaden |
 | `COMBAT.INPUT_BUFFER`     | 5                             | wie viele Frames ein zu früh gedrückter Knopf gemerkt wird |
@@ -203,11 +226,16 @@ Alle Spielwerte stehen in **`src/config.js`** – mit Kommentaren. Datei mit ein
 | `ROUND.ROUNDS_TO_WIN`     | 2                             | 2 = Best of 3, 3 = Best of 5 |
 | `NET.DEFAULT_DELAY`       | 3                             | Standard-Eingabeverzögerung online |
 | `KEYS`                    |                               | Tastenbelegung |
-| `LOOK.PLAYERS`            |                               | Farben der Kämpfer (ändert nichts am Spielablauf) |
+| `CHARACTERS.….look.palettes` |                            | Farben der Kämpfer (2. Farbe = gleiche Wahl) |
+| `LOOK.PLAYERS`            |                               | Kennfarben von Spieler 1/2 (Namen, Markierungen) |
 | `LOOK.SCREEN_SHAKE` / `PARTICLES` | 1.0                   | Bildschirmwackeln und Partikelmenge (0 = aus) |
 | `LOOK.SHOW_CONTROLS`      | true                          | Tastenbelegung klein unten im Bild anzeigen (`false` = aus) |
 
 Beispiel: Der Energieball ist zu stark? Setze `cooldown: 180` (3 Sekunden) oder `damage: 7`.
+
+**Charaktere ausbalancieren:** Die jetzigen Werte sind mit vielen Computer-Kämpfen abgestimmt (jede
+Paarung gewinnt etwa 45–55 %). Schon wenige Prozent bei `hp`, `damageScale` oder `size` machen viel aus –
+lieber in kleinen Schritten ändern und ausprobieren.
 
 **Faustregel „Frame-Vorteil“:** `hitstun − (active + recovery)` ungefähr. Positiv heißt: Nach deinem
 Treffer bist du zuerst wieder dran. Im Training wird der genaue Wert oben links angezeigt.
@@ -262,6 +290,7 @@ Für Neugierige (über den lokalen Server öffnen):
 | `index.html`, `style.css` | Seite, Menüs, Touch-Knöpfe |
 | `src/config.js` | **alle Spielwerte** |
 | `src/sim.js` | die Spiellogik (Bewegung, Treffer, Runden) – rechnet nur mit ganzen Zahlen |
+| `src/select.js` | der Auswahl-Bildschirm für die Kämpfer |
 | `src/render.js`, `src/poses.js` | Grafik: Hintergrund, Figuren, Effekte, Anzeigen |
 | `src/audio.js` | Soundeffekte (werden live erzeugt) |
 | `src/input.js`, `src/touch.js` | Tastatur, Gamepad, Touch |

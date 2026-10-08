@@ -33,6 +33,12 @@ Bezeichner auf Englisch, Kommentare knapp und erklärend.
   `step` neu befüllt; Koordinaten in Events sind ganze Pixel. main.js sammelt sie nach JEDEM
   Schritt ein (bei mehreren Schritten pro Bild gehen sonst welche verloren).
 - `checksum` = FNV-1a (`Math.imul`) über `JSON.stringify(state)`.
+- Charaktere: `state.chars` + `fighter.char`. sim.js baut beim Laden `CHAR_DATA[id]` (Grundwerte aus
+  FIGHTER/MOVES + Abweichungen aus CHARACTERS, `size` skaliert ALLE Boxen, `damageScale` den Schaden).
+  Zugriff nur über `charData(f)` – nie direkt auf MOVES/FIGHTER für charakterabhängige Werte.
+  Special-Mechaniken sind datengetrieben: `projectile: 'ball'|'wave'` (Geschoss, `ball` = Box),
+  `dashSpeed` (Sprint während der aktiven Frames), `airJumps` (Doppelsprung, neue „hoch“-Flanke).
+- Balancing per Bot-Simulation prüfen (alle Paarungen ~45–55 %), Werte in config.js kommentiert.
 
 ### Spielschleife (src/main.js, src/pacing.js)
 - Fester Takt 60 Ticks/s per `FrameClock` (pacing.js), max. 5 Schritte pro Bild. Rendering ist davon getrennt.
@@ -56,6 +62,13 @@ Bezeichner auf Englisch, Kommentare knapp und erklärend.
   Klicks auf Knöpfe/offene Menüs und Touch-Kompatibilitäts-Mausereignisse zählen nicht.
 - Kurze Tipper werden gemerkt („latch“) und nach jedem `session.tick()` mit `clearInputLatch()` gelöscht.
 - Anzeige der Tastenbelegung: `src/controls.js` (aus `KEYS`/`GAMEPAD`), Schalter `LOOK.SHOW_CONTROLS`.
+
+### Charakterwahl (src/select.js)
+- `CharacterSelect`: lokal zwei Cursor (P1/P2-Tasten, Pads 0/1), Training erst Spieler dann Dummy,
+  online nur der eigene Cursor. Zeichnet über `sceneState()` eine Bühne (Renderer `view.select`).
+- Online: OnlineSession `mode` = 'select' | 'play'. Picks als `pick {c,r,n}` (+ im `ping` als `pk`,
+  `n` = Sequenz gegen Vertauschung). Host startet mit `createMatch({chars:[host, gast]})`, sobald beide
+  bereit sind. `reselect {s}` schickt beide zurück zur Auswahl; Rematch behält `state.chars`.
 
 ### Online (src/lockstep.js, src/net.js, src/online.js)
 - Delay-based Lockstep: lokale Eingabe für Frame `f + delay` einplanen, Frame `f` nur simulieren,
@@ -98,6 +111,9 @@ Bezeichner auf Englisch, Kommentare knapp und erklärend.
 - `src/sessions.js` – Lokal/Training/Demo · `src/main.js` – Start, Schleife, Menü-Verdrahtung
 - `src/render.js`, `src/poses.js` – Grafik · `src/audio.js` – WebAudio-Sounds · `src/ui.js` – DOM-Menüs
 - `src/touch.js` – Touch-Steuerung · `src/lockstep.js`, `src/net.js`, `src/online.js` – Online
+- `src/select.js` – Charakterwahl · `src/pacing.js` – Spieltakt · `src/controls.js` – Tastenanzeige
+- `tests/characters.test.js` – Fähigkeiten aller Charaktere, alle Paarungen deterministisch
+- `tests/poses.html?char=fels` – Posen eines Charakters mit Hitboxen
 - `tests/` – Node-Tests (`node:test`), `tests/online-test.html` – zwei Instanzen mit Bots über echtes PeerJS
 - `tools/serve.js` – Mini-Webserver ohne Abhängigkeiten
 - `sw.js` – Service Worker: eigene Dateien immer mit `cache: 'no-cache'` laden (GitHub Pages cacht sonst 10 Min.)

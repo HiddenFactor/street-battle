@@ -35,11 +35,12 @@ class BaseSession {
   dispose() {}
 }
 
-/** Zwei Spieler an einem Gerät (Tastatur und/oder Gamepads). */
+/** Zwei Spieler an einem Gerät (Tastatur und/oder Gamepads). chars = gewählte Charaktere */
 export class LocalSession extends BaseSession {
-  constructor(touch) {
-    super(createMatch());
+  constructor(touch, chars) {
+    super(createMatch({ chars }));
     this.kind = 'local';
+    this.chars = chars;
     this.p1 = combine(new KeyboardInput(KEYS.P1), new GamepadInput(0), touch);
     this.p2 = combine(new KeyboardInput(KEYS.P2), new GamepadInput(1));
   }
@@ -48,15 +49,16 @@ export class LocalSession extends BaseSession {
     return true;
   }
   rematch() {
-    this.restart();
+    this.restart({ chars: this.chars });
   }
 }
 
 /** Training gegen einen Dummy. Spieler 1 darf jedes Eingabegerät benutzen. */
 export class TrainingSession extends BaseSession {
-  constructor(touch) {
-    super(createMatch({ training: true }));
+  constructor(touch, chars) {
+    super(createMatch({ training: true, chars }));
     this.kind = 'training';
+    this.chars = chars;
     this.p1 = combine(new KeyboardInput(KEYS.P1), new KeyboardInput(KEYS.P2), new GamepadInput(0), touch);
     this.dummy = new DummyInput(() => this.state.fighters[1]);
   }
@@ -65,7 +67,7 @@ export class TrainingSession extends BaseSession {
     return true;
   }
   rematch() {
-    this.restart({ training: true });
+    this.restart({ training: true, chars: this.chars });
   }
 }
 

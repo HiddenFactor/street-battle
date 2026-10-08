@@ -182,6 +182,8 @@ export const MOVES = {
 // ---------------------------------------------------------------------
 // Charaktere
 // ---------------------------------------------------------------------
+// Die Werte sind mit vielen Computer-Kämpfen ausbalanciert (alle Paarungen
+// zwischen etwa 45 und 55 % Siegen). Kleine Änderungen wirken stark!
 // Jeder Charakter benutzt die Grundwerte aus FIGHTER und MOVES und legt
 // hier nur seine Abweichungen fest:
 //   hp            Lebenspunkte
@@ -217,22 +219,22 @@ export const CHARACTERS = {
     name: 'FELS',
     role: 'Kraftpaket',
     info: 'Langsam, aber zäh und hart. Der Erdstoß rollt über den Boden – nur geduckt blockbar.',
-    hp: 120,
-    size: 1.14,
+    hp: 108,
+    size: 1.05,
     walkForward: 2.7,
     walkBack: 2.1,
     jumpVelocity: 13.5,
     jumpForward: 3.6,
     airControl: 0.45,
     airMaxSpeed: 3.8,
-    damageScale: 125,
+    damageScale: 108,
     special: 'stomp',
     moves: {
       lightStand: { startup: 5, recovery: 9 },
       heavyStand: { startup: 11, recovery: 20, knockback: 8.5 },
       heavyCrouch: { startup: 12 },
     },
-    stats: { Leben: 5, Kraft: 5, Tempo: 1, Sprung: 2 },
+    stats: { Leben: 4, Kraft: 4, Tempo: 1, Sprung: 2 },
     look: {
       build: 'heavy', head: 'bald', torso: 'vest',
       palettes: [
@@ -245,8 +247,8 @@ export const CHARACTERS = {
     name: 'WIESEL',
     role: 'Flink',
     info: 'Schnell und wendig mit Doppelsprung. Der Blitztritt überrascht – geblockt ist er aber gefährlich.',
-    hp: 85,
-    size: 0.92,
+    hp: 95,
+    size: 0.98,
     walkForward: 4.3,
     walkBack: 3.3,
     jumpVelocity: 15.5,
@@ -255,7 +257,7 @@ export const CHARACTERS = {
     airMaxSpeed: 5.4,
     airJumps: 1,
     airJumpVelocity: 12.5,
-    damageScale: 80,
+    damageScale: 95,
     special: 'dashKick',
     moves: {
       lightStand: { startup: 3, recovery: 7 },
