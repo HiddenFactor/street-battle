@@ -86,7 +86,8 @@ Bezeichner auf Englisch, Kommentare knapp und erklärend.
   bereit sind. `reselect {s}` schickt beide zurück zur Auswahl; Rematch behält `state.chars`.
 
 ### Online (src/lockstep.js, src/net.js, src/online.js)
-- Lobby (Test, `NET.FIXED_LOBBY = true`): Host benutzt immer denselben Code (`LOBBY_CODE_LENGTH` = 8 Zeichen,
+- Standard: jeder Raum bekommt einen neuen 5er-Code (`NET.FIXED_LOBBY = false`, so gewünscht).
+- Feste Lobby (ausprobiert, aus; `NET.FIXED_LOBBY = true`): Host benutzt immer denselben Code (`LOBBY_CODE_LENGTH` = 8 Zeichen,
   nur in localStorage `streetbattle-lobby`, „Neuer Link“ erzeugt einen neuen). Ist die ID beim Server noch
   belegt (`taken`), kurz warten und erneut. Gast über `?join=CODE` versucht es alle `JOIN_RETRY_MS` erneut,
   solange die Lobby fehlt (`notFound`). Code-Eingabe ist dann ausgeblendet. `false` = alter Ablauf (5er-Codes).

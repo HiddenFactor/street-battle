@@ -5,7 +5,7 @@ Ein 2D-Fighting-Game für den Browser – für zwei Spieler an einem Gerät oder
 und keinen Build-Schritt. Die einzige fremde Bibliothek ist [PeerJS](https://peerjs.com) für die
 Online-Verbindung.
 
-**Modi:** Lokal (2 Spieler) · Online (deine feste Lobby per Link) · Training (gegen einen Dummy)
+**Modi:** Lokal (2 Spieler) · Online (Raumcode) · Training (gegen einen Dummy)
 **Kämpfer:** Funke · Fels · Wiesel · Luchs · Komet · Anker – Auswahl vor jedem Match
 
 **▶ Jetzt spielen: <https://hiddenfactor.github.io/street-battle/>**
@@ -82,24 +82,19 @@ Start, ob Node.js im Netzwerk erreichbar sein darf, „Private Netzwerke“ erla
 
 ## 2. Online gegen deinen Bruder spielen
 
-### So geht's (Test: feste Lobby)
-1. **Du:** „Online spielen“ → **„Lobby öffnen“**. Es erscheint dein Einladungslink, z. B.
-   `…/street-battle/?join=AB3CD7EF`.
-2. **Einmal** auf „Einladungslink kopieren“ drücken und deinem Bruder schicken. **Der Link bleibt immer gleich** –
-   er kann ihn sich speichern und beim nächsten Mal einfach wieder antippen.
-3. **Dein Bruder:** öffnet den Link – und ist direkt in deiner Lobby. Ist sie noch nicht offen, wartet das
-   Spiel einfach („Die Lobby ist noch nicht offen …“) und verbindet sich, sobald du sie öffnest.
-4. Beide wählen ihren Kämpfer, dann geht's los! Wer die Lobby geöffnet hat, ist links, der andere rechts.
-   Über deiner Figur steht „DU“.
+### So geht's
+1. Beide öffnen das Spiel (am besten die hochgeladene Version, siehe Abschnitt 3).
+2. **Du:** „Online spielen“ → **„Raum erstellen“**. Du bekommst einen Code aus 5 Zeichen, z. B. `K7QXM`.
+   Jedes Mal gibt es einen neuen Code.
+3. **Dein Bruder:** „Online spielen“ → Code eintippen → **„Beitreten“**.
+   Noch bequemer: Du drückst „Einladungslink kopieren“ und schickst ihm den Link – er tritt dann
+   automatisch bei.
+4. Beide wählen ihren Kämpfer, dann geht's los! Wer den Raum erstellt hat, ist links, der andere rechts. Über deiner Figur
+   steht „DU“.
 
-Gut zu wissen:
-- Der Lobby-Code wird nur **auf deinem Gerät** gespeichert. PC und Handy haben also je einen eigenen Link.
-- Nur wer deinen Link hat, kommt rein (der Code ist 8 Zeichen lang und nicht zu erraten). Ist schon jemand drin,
-  bekommt ein Dritter „Raum ist voll“.
-- **„Neuer Link“** erzeugt einen neuen Code – der alte Link gilt dann nicht mehr (z. B. falls er in falsche
-  Hände geraten ist).
-- **Zurück zum alten System** (jedes Mal ein neuer 5-stelliger Raum-Code, Beitreten per Code-Eingabe):
-  in `src/config.js` bei `NET` den Wert `FIXED_LOBBY: false` setzen.
+Ausprobiert, aber derzeit aus: eine **feste Lobby** mit immer gleichem Link (`FIXED_LOBBY: true` bei `NET`
+in `src/config.js`). Dann behält dein Gerät denselben Code, und wer den Link öffnet, wartet automatisch, bis
+deine Lobby offen ist.
 
 Oben in der Mitte steht eine Info-Zeile, z. B. `Ping 7 ms · Verzögerung 2 · Warten 0 % · FPS 60/60`:
 - **Ping:** Laufzeit eurer Verbindung (hin und zurück).
@@ -116,7 +111,7 @@ PeerJS-Server hilft nur beim Kennenlernen. Danach schicken sich die Geräte nur 
 erscheint **„DESYNC – Runde wird neu gestartet“** und die Runde beginnt neu (der Spielstand bleibt).
 
 ### Eingabeverzögerung einstellen
-Im Online-Menü (Schieberegler, 1–8 Frames, Standard 3). Es gilt der Wert dessen, der die Lobby öffnet.
+Im Online-Menü (Schieberegler, 1–8 Frames, Standard 3). Es gilt der Wert dessen, der den Raum erstellt.
 
 | Ping       | Empfohlene Verzögerung |
 |------------|------------------------|
@@ -133,10 +128,8 @@ Zu niedrig = das Spiel stockt kurz („Warte auf Gegner …“). Zu hoch = die F
 
 ### Wenn es nicht klappt
 - **„Verbindung fehlgeschlagen“:** Manche **Mobilfunknetze** und Firmen-/Schul-WLANs blockieren
-  Peer-to-Peer. Probiert es im Heim-WLAN, über einen **Handy-Hotspot**, oder tauscht, wer die Lobby öffnet.
-- **Dein Bruder wartet ewig:** Ist deine Lobby offen (Bildschirm „Deine Lobby ist offen“)? Hat er den
-  richtigen Link (von dem Gerät, auf dem du gerade spielst)?
-- **„Lobby schon offen“:** Deine Lobby ist noch in einem anderen Tab/Fenster offen – das schließen.
+  Peer-to-Peer. Probiert es im Heim-WLAN, über einen **Handy-Hotspot**, oder tauscht, wer den Raum erstellt.
+- **„Raum nicht gefunden“:** Code prüfen. Der Raum-Ersteller muss die Seite offen lassen.
 - **„Verschiedene Versionen“:** Beide die Seite neu laden (F5). Hast du `config.js` geändert, muss dein
   Bruder dieselbe Version benutzen – also erst hochladen, dann spielen.
 - **Spiel stockt:** Verzögerung erhöhen. Und: nicht den Browser-Tab wechseln – im Hintergrund bremst der
@@ -202,8 +195,8 @@ So würdest du es bei einem neuen Projekt selbst einrichten:
    - **Visibility & access:** **Public**, damit dein Bruder die Seite öffnen kann
      (mit „Draft“ siehst nur du das Spiel).
 5. **„Save & view page“** – fertig. Den Link der Seite deinem Bruder schicken.
-6. Online-Tipp für itch.io: Dort führt der Einladungslink zur nackten Spieldatei (itch.io zeigt das Spiel in
-   einem Rahmen an). Für itch.io daher `FIXED_LOBBY: false` setzen und den **Raumcode** schicken.
+6. Online-Tipp für itch.io: Schick deinem Bruder lieber den **Raumcode** statt des Einladungslinks
+   (itch.io zeigt das Spiel in einem Rahmen an, der Link führt dann zur nackten Spieldatei).
 
 ---
 

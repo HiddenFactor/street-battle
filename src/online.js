@@ -356,8 +356,7 @@ export class OnlineLobby {
     this.ui.show('online');
     this.ui.setStatus('online-status', 'Lade Online-Modul …');
     loadPeerJS().then(
-      () => this.ui.current === 'online' && this.ui.setStatus('online-status',
-        NET.FIXED_LOBBY ? 'Bereit. Öffne deine Lobby.' : 'Bereit. Erstelle einen Raum oder tritt mit einem Code bei.'),
+      () => this.ui.current === 'online' && this.ui.setStatus('online-status', this.readyText()),
       () => this.ui.current === 'online' && this.ui.setStatus('online-status', ERRORS.load[1], true),
     );
   }
@@ -387,7 +386,7 @@ export class OnlineLobby {
       if (this.net !== net) return;
       this.code = code;
       this.ui.setText('room-code', code);
-      this.ui.setText('invite-link', this.inviteLink());
+      if (NET.FIXED_LOBBY) this.ui.setText('invite-link', this.inviteLink()); // fester Link wird angezeigt
       this.ui.setStatus('host-status', 'Warte auf Mitspieler …');
       this.ui.show('host');
       net.onError = (key) => this.showError(key);
@@ -451,7 +450,14 @@ export class OnlineLobby {
   cancel(showLobby = true) {
     if (this.net) this.net.close();
     this.net = null;
-    if (showLobby) this.ui.show('online');
+    if (showLobby) {
+      this.ui.setStatus('online-status', this.readyText()); // nicht mehr "Erstelle Raum …"
+      this.ui.show('online');
+    }
+  }
+
+  readyText() {
+    return NET.FIXED_LOBBY ? 'Bereit. Öffne deine Lobby.' : 'Bereit. Erstelle einen Raum oder tritt mit einem Code bei.';
   }
 
   showError(key) {
