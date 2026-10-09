@@ -86,6 +86,10 @@ Bezeichner auf Englisch, Kommentare knapp und erklärend.
   bereit sind. `reselect {s}` schickt beide zurück zur Auswahl; Rematch behält `state.chars`.
 
 ### Online (src/lockstep.js, src/net.js, src/online.js)
+- Lobby (Test, `NET.FIXED_LOBBY = true`): Host benutzt immer denselben Code (`LOBBY_CODE_LENGTH` = 8 Zeichen,
+  nur in localStorage `streetbattle-lobby`, „Neuer Link“ erzeugt einen neuen). Ist die ID beim Server noch
+  belegt (`taken`), kurz warten und erneut. Gast über `?join=CODE` versucht es alle `JOIN_RETRY_MS` erneut,
+  solange die Lobby fehlt (`notFound`). Code-Eingabe ist dann ausgeblendet. `false` = alter Ablauf (5er-Codes).
 - Delay-based Lockstep: lokale Eingabe für Frame `f + delay` einplanen, Frame `f` nur simulieren,
   wenn beide Eingaben da sind. Pakete enthalten alle unbestätigten Eingaben (mind. die letzten 8)
   + `ack`. Alle 60 Ticks Prüfsumme; bei Abweichung startet der Host die Runde neu (`sync`).
@@ -112,7 +116,7 @@ Bezeichner auf Englisch, Kommentare knapp und erklärend.
 - Lokal/Training pausieren, wenn der Tab versteckt wird.
 
 ## URL-Parameter und Test-Hilfen
-- `?debug` Hitboxen + Debug-Text, F9 erzwingt online einen Desync · `?join=CODE` tritt direkt bei ·
+- `?debug` Hitboxen + Debug-Text, F9 erzwingt online einen Desync · `?join=CODE` tritt direkt bei (feste Lobby: wartet) ·
   `?autohost` erstellt sofort einen Raum · `?bot=SEED` online spielt ein Bot ·
   `?test` keine Auto-Pause, ungedrosselte Schleife (MessageChannel) auch im versteckten Tab.
 - `window.streetBattle` (Konsole/Tests): `session`, `renderer`, `ui`, `lobby`, `freeze`,

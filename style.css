@@ -262,6 +262,16 @@ button[disabled] { filter: grayscale(1) brightness(0.7); cursor: default; }
 }
 .delay { font-family: system-ui, sans-serif; font-weight: 700; font-size: 0.8em; color: var(--muted); display: flex; align-items: center; gap: 0.4em; flex-wrap: wrap; justify-content: center; }
 .delay input { width: 8em; accent-color: var(--accent); }
+/* Einladungslink (feste Lobby) – zum Markieren und Kopieren */
+.invite-link {
+  max-width: 32em;
+  font: 600 0.75em ui-monospace, Consolas, monospace;
+  color: var(--accent);
+  word-break: break-all;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.invite-link:empty, .room-code[hidden], .panel[hidden] { display: none; }
 .room-code {
   font-size: 4em;
   letter-spacing: 0.2em;

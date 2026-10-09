@@ -22,7 +22,7 @@
 // Spielwerte. Das Spiel prüft das beim Verbinden.
 // =====================================================================
 
-export const GAME_VERSION = '2.2.0';
+export const GAME_VERSION = '2.3.0';
 
 // ---------------------------------------------------------------------
 // Spieltempo
@@ -471,6 +471,12 @@ export const NET = {
   CHECKSUM_INTERVAL: 60, // alle X Frames wird geprüft, ob beide Spiele gleich laufen
   ID_PREFIX: 'streetbattle-v1-',
   CODE_LENGTH: 5,
+  // Test: feste Lobby. true = dein Gerät behält immer denselben Lobby-Code, dein Einladungslink
+  // bleibt also gleich. Wer ihn öffnet, landet direkt in deiner offenen Lobby (ist sie noch zu,
+  // wartet er automatisch). false = wie früher: jedes Mal ein neuer Raum-Code, Beitreten per Code.
+  FIXED_LOBBY: true,
+  LOBBY_CODE_LENGTH: 8,  // Länge des festen Lobby-Codes (lang = nicht zu erraten)
+  JOIN_RETRY_MS: 3000,   // Link geöffnet, Lobby aber noch zu: so oft erneut nachsehen (Millisekunden)
   CONNECT_TIMEOUT_MS: 15000,
   DISCONNECT_TIMEOUT_MS: 8000,
   PING_INTERVAL_MS: 1000,

@@ -10,11 +10,12 @@ import { NET } from './config.js';
 
 // Ohne leicht verwechselbare Zeichen (kein I, O, 0, 1)
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const CODE_PATTERN = new RegExp(`^[${CODE_CHARS}]{${NET.CODE_LENGTH}}$`);
+const CODE_PATTERN = new RegExp(`^[${CODE_CHARS}]+$`);
 
-export function makeRoomCode() {
+/** Zufälliger Code (Raum-Code oder – länger – fester Lobby-Code) */
+export function makeRoomCode(length = NET.CODE_LENGTH) {
   let code = '';
-  for (let i = 0; i < NET.CODE_LENGTH; i++) code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+  for (let i = 0; i < length; i++) code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
   return code;
 }
 
@@ -23,7 +24,7 @@ export function cleanCode(text) {
 }
 
 export function isValidCode(code) {
-  return CODE_PATTERN.test(code);
+  return (code.length === NET.CODE_LENGTH || code.length === NET.LOBBY_CODE_LENGTH) && CODE_PATTERN.test(code);
 }
 
 // Fehlermeldungen auf Deutsch: [Überschrift, Text]
@@ -42,6 +43,7 @@ export const ERRORS = {
   version: ['Verschiedene Versionen', 'Ihr habt unterschiedliche Spielversionen oder Spielwerte (config.js).\nBitte beide die Seite neu laden (F5). Wer config.js geändert hat, muss die neue Version auch dem Gegner geben.'],
   busy: ['Raum ist voll', 'In diesem Raum spielen schon zwei Leute.'],
   taken: ['Code vergeben', 'Dieser Raumcode ist gerade belegt.'],
+  lobbyTaken: ['Lobby schon offen', 'Deine Lobby ist gerade schon offen – vielleicht in einem anderen Tab oder Fenster?\nSchließ es und versuch es nochmal.'],
 };
 
 function errorKey(err) {

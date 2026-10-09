@@ -15,6 +15,8 @@ import { Net, ERRORS, loadPeerJS, makeRoomCode, cleanCode, isValidCode } from '.
 export const CONFIG_HASH = checksum(gameplayConfig());
 
 const DELAY_KEY = 'streetbattle-delay';
+const LOBBY_KEY = 'streetbattle-lobby'; // fester Lobby-Code dieses Geräts (nur hier gespeichert)
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function loadDelay() {
   try {
@@ -307,6 +309,46 @@ export class OnlineLobby {
       if (e.key === 'Enter') this.join(codeInput.value);
     });
     document.getElementById('btn-share').hidden = !navigator.share;
+
+    // Test "feste Lobby": nur ein Knopf, Beitreten läuft über den Link
+    if (NET.FIXED_LOBBY) {
+      ui.setText('host-panel-title', 'Deine Lobby');
+      ui.setText('host-panel-text', 'Öffne deine Lobby und schick deinem Gegner den Link – er bleibt immer gleich.');
+      ui.setText('btn-host', 'Lobby öffnen');
+      document.getElementById('join-panel').hidden = true;
+      ui.setText('host-title', 'Deine Lobby ist offen');
+      ui.setText('host-text', 'Schick deinem Gegner diesen Link. Er bleibt immer gleich – wer ihn öffnet, landet direkt hier:');
+      document.getElementById('room-code').hidden = true;
+      document.getElementById('btn-new-lobby').hidden = false;
+    }
+  }
+
+  // Fester Lobby-Code: einmal erzeugen, dann auf diesem Gerät merken
+  lobbyCode() {
+    try {
+      const saved = localStorage.getItem(LOBBY_KEY);
+      if (saved && saved.length === NET.LOBBY_CODE_LENGTH && isValidCode(saved)) return saved;
+      const code = makeRoomCode(NET.LOBBY_CODE_LENGTH);
+      localStorage.setItem(LOBBY_KEY, code);
+      return code;
+    } catch {
+      // kein Speicher (privates Fenster): gilt dann nur, solange die Seite offen ist
+      if (!this.tempLobby) this.tempLobby = makeRoomCode(NET.LOBBY_CODE_LENGTH);
+      return this.tempLobby;
+    }
+  }
+
+  /** Neuer Lobby-Code – der alte Link gilt danach nicht mehr */
+  newLobby() {
+    try {
+      localStorage.removeItem(LOBBY_KEY);
+    } catch {
+      /* egal */
+    }
+    this.tempLobby = null;
+    this.host().then(() => {
+      if (this.ui.current === 'host') this.ui.toast('Neuer Link erstellt – der alte gilt nicht mehr.', 3500);
+    });
   }
 
   open() {
@@ -314,16 +356,19 @@ export class OnlineLobby {
     this.ui.show('online');
     this.ui.setStatus('online-status', 'Lade Online-Modul …');
     loadPeerJS().then(
-      () => this.ui.current === 'online' && this.ui.setStatus('online-status', 'Bereit. Erstelle einen Raum oder tritt mit einem Code bei.'),
+      () => this.ui.current === 'online' && this.ui.setStatus('online-status',
+        NET.FIXED_LOBBY ? 'Bereit. Öffne deine Lobby.' : 'Bereit. Erstelle einen Raum oder tritt mit einem Code bei.'),
       () => this.ui.current === 'online' && this.ui.setStatus('online-status', ERRORS.load[1], true),
     );
   }
 
   async host() {
     this.cancel(false);
-    this.ui.setStatus('online-status', 'Erstelle Raum …');
+    this.ui.setStatus('online-status', NET.FIXED_LOBBY ? 'Öffne Lobby …' : 'Erstelle Raum …');
     for (let attempt = 0; attempt < 4; attempt++) {
-      const code = makeRoomCode();
+      // Feste Lobby: immer derselbe Code. Ist er noch belegt (z. B. gerade neu geladen),
+      // gibt der Server ihn nach kurzer Zeit frei → kurz warten und nochmal.
+      const code = NET.FIXED_LOBBY ? this.lobbyCode() : makeRoomCode();
       const net = new Net();
       this.net = net;
       try {
@@ -331,23 +376,32 @@ export class OnlineLobby {
       } catch (err) {
         net.close();
         if (this.net !== net) return; // inzwischen abgebrochen
-        if (err.key === 'taken') continue;
+        if (err.key === 'taken') {
+          if (NET.FIXED_LOBBY) await wait(2000);
+          if (this.net !== net) return;
+          continue;
+        }
         this.showError(err.key || 'server');
         return;
       }
       if (this.net !== net) return;
       this.code = code;
       this.ui.setText('room-code', code);
+      this.ui.setText('invite-link', this.inviteLink());
       this.ui.setStatus('host-status', 'Warte auf Mitspieler …');
       this.ui.show('host');
       net.onError = (key) => this.showError(key);
       net.onOpen = () => this.connected(net, true);
       return;
     }
-    this.showError('server');
+    this.showError(NET.FIXED_LOBBY ? 'lobbyTaken' : 'server');
   }
 
-  async join(text) {
+  /**
+   * Einem Raum / einer Lobby beitreten.
+   * retry = true (Einladungslink bei fester Lobby): ist die Lobby noch zu, alle paar Sekunden erneut nachsehen.
+   */
+  async join(text, retry = false) {
     const code = cleanCode(text);
     if (!isValidCode(code)) {
       this.ui.setStatus('online-status', `Der Code hat ${NET.CODE_LENGTH} Zeichen (Buchstaben A–Z und Zahlen 2–9).`, true);
@@ -356,18 +410,28 @@ export class OnlineLobby {
     }
     this.cancel(false);
     this.ui.show('connecting');
-    this.ui.setStatus('connect-status', `Suche Raum ${code} …`);
-    const net = new Net();
-    this.net = net;
-    try {
-      await net.join(code);
-    } catch (err) {
+    const what = NET.FIXED_LOBBY ? 'Lobby' : `Raum ${code}`;
+    this.ui.setStatus('connect-status', `Suche ${what} …`);
+    for (;;) {
+      const net = new Net();
+      this.net = net;
+      try {
+        await net.join(code);
+      } catch (err) {
+        if (this.net !== net) return; // abgebrochen
+        if (retry && err.key === 'notFound') {
+          this.ui.setStatus('connect-status', 'Die Lobby ist noch nicht offen – ich warte und versuche es weiter …');
+          await wait(NET.JOIN_RETRY_MS);
+          if (this.net !== net) return; // während des Wartens abgebrochen
+          continue;
+        }
+        this.showError(err.key || 'server');
+        return;
+      }
       if (this.net !== net) return;
-      this.showError(err.key || 'server');
+      this.connected(net, false);
       return;
     }
-    if (this.net !== net) return;
-    this.connected(net, false);
   }
 
   connected(net, isHost) {
@@ -414,6 +478,7 @@ export class OnlineLobby {
 
   shareLink() {
     if (!navigator.share) return this.copyLink();
-    navigator.share({ title: 'Street Battle', text: `Kämpf gegen mich! Raumcode: ${this.code}`, url: this.inviteLink() }).catch(() => {});
+    const text = NET.FIXED_LOBBY ? 'Kämpf gegen mich in Street Battle!' : `Kämpf gegen mich! Raumcode: ${this.code}`;
+    navigator.share({ title: 'Street Battle', text, url: this.inviteLink() }).catch(() => {});
   }
 }

@@ -15,7 +15,7 @@ import { OnlineLobby } from './online.js';
 import { CharacterSelect } from './select.js';
 import { TouchControls, prefersTouch } from './touch.js';
 import { ERRORS } from './net.js';
-import { KEYS, LOOK, GAME_VERSION } from './config.js';
+import { KEYS, LOOK, GAME_VERSION, NET } from './config.js';
 import { controlsLines, menuHint } from './controls.js';
 import { FrameClock, STEP_MS } from './pacing.js';
 
@@ -223,6 +223,7 @@ ui.on('join', () => lobby.join($('join-code').value));
 ui.on('cancel-online', () => lobby.cancel());
 ui.on('copy-link', () => lobby.copyLink());
 ui.on('share-link', () => lobby.shareLink());
+ui.on('new-lobby', () => lobby.newLobby());
 ui.on('stay', () => ui.hide());
 ui.on('help', () => ui.show('help'));
 ui.on('back', () => ui.show('title'));
@@ -491,7 +492,7 @@ window.addEventListener('pagehide', () => {
 if (params.get('join')) {
   lobby.open();
   $('join-code').value = params.get('join').toUpperCase();
-  lobby.join(params.get('join'));
+  lobby.join(params.get('join'), NET.FIXED_LOBBY); // feste Lobby: warten, bis sie offen ist
 } else if (params.has('autohost')) {
   lobby.open();
   lobby.host();
