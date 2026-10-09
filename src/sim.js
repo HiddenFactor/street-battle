@@ -20,7 +20,7 @@
 // =====================================================================
 
 import { STAGE, FIGHTER, MOVES, CHARACTERS, CHARACTER_ORDER, COMBAT, ROUND, TRAINING, GAME_SPEED } from './config.js';
-import { UP, DOWN, LEFT, RIGHT, LIGHT, HEAVY, SPECIAL, BUTTONS, ALL_INPUTS } from './buttons.js';
+import { UP, DOWN, LEFT, RIGHT, LIGHT, HEAVY, SPECIAL, DASH, BUTTONS, ALL_INPUTS } from './buttons.js';
 
 export const SUB = 100; // 1 Pixel = 100 Subpixel
 
@@ -123,6 +123,10 @@ for (const [id, def] of Object.entries(CHARACTERS)) {
     airMax: vel(v('airMaxSpeed', FIGHTER.AIR_MAX_SPEED || 0)),
     airJumps: v('airJumps', 0),
     airJumpV: vel(v('airJumpVelocity', FIGHTER.JUMP_VELOCITY)),
+    dashF: vel(v('dashForward', FIGHTER.DASH_SPEED)),
+    dashB: vel(v('dashBack', FIGHTER.BACKDASH_SPEED)),
+    dashFrames: dur(FIGHTER.DASH_FRAMES),
+    dashRecovery: dur(FIGHTER.DASH_RECOVERY),
     special: def.special || 'special',
     push: {
       stand: box(FIGHTER.PUSHBOX.stand, size),
@@ -174,6 +178,7 @@ function newFighter(i, charId) {
     airAttackUsed: false,
     jumpDir: 0,         // Sprungrichtung: -1 nach links, 0 senkrecht, 1 nach rechts
     airJumpsLeft: 0,    // übrige Sprünge in der Luft (Doppelsprung)
+    dashDir: 0,         // Richtung des Dashs: -1 nach links, 1 nach rechts
     invuln: 0,          // unverwundbare Frames
     refillTimer: 0,     // nur Training: Frames ohne Treffer
   };
@@ -411,12 +416,25 @@ function startMove(s, i, id) {
   s.events.push({ type: 'swing', p: i, move: id });
 }
 
+function startDash(s, i, dir) {
+  const f = s.fighters[i];
+  const c = C(f);
+  setState(f, 'dash');
+  f.dashDir = dir;
+  f.vx = dir * (dir === f.facing ? c.dashF : c.dashB);
+  f.crouching = false;
+  f.guarding = false;
+  f.bufferBtn = 0;
+  f.bufferTimer = 0;
+  s.events.push({ type: 'dash', p: i, x: toPx(f.x), dir, back: dir !== f.facing });
+}
+
 // Neuen Knopfdruck merken (Eingabepuffer)
 function recordPress(f, input) {
   const pressed = input & ~f.prevInput & BUTTONS;
   f.prevInput = input;
   if (pressed) {
-    f.bufferBtn = pressed & SPECIAL ? SPECIAL : pressed & HEAVY ? HEAVY : LIGHT;
+    f.bufferBtn = pressed & SPECIAL ? SPECIAL : pressed & HEAVY ? HEAVY : pressed & LIGHT ? LIGHT : DASH;
     f.bufferTimer = COMBAT.INPUT_BUFFER;
   }
   return pressed;
@@ -459,6 +477,11 @@ function think(s, i, input) {
       }
       break;
     }
+    case 'dash':
+      // erst gleiten, dann kurz stehen bleiben (Erholung)
+      if (f.stateFrame >= c.dashFrames + c.dashRecovery) toIdle(f);
+      else f.vx = f.stateFrame < c.dashFrames ? f.dashDir * (f.dashDir === f.facing ? c.dashF : c.dashB) : 0;
+      break;
     case 'land':
     case 'hitstun':
     case 'blockstun':
@@ -517,6 +540,12 @@ function think(s, i, input) {
   }
 
   if (!ACTIONABLE[f.state]) return;
+
+  // Dash: in die gehaltene Richtung, sonst nach vorn
+  if (f.bufferBtn === DASH) {
+    startDash(s, i, d.h !== 0 ? d.h : f.facing);
+    return;
+  }
 
   // Am Boden und handlungsfähig: Angriff?
   if (f.bufferBtn) {

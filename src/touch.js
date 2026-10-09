@@ -1,14 +1,14 @@
 // =====================================================================
 // touch.js – Steuerung per Touchscreen (Handy/Tablet)
 // ---------------------------------------------------------------------
-// Links ein Steuerkreuz (8 Richtungen), rechts drei Angriffsknöpfe.
+// Links ein Steuerkreuz (8 Richtungen), rechts drei Angriffsknöpfe und der Dash (»).
 // Mehrere Finger gleichzeitig gehen (Pointer Events). Das Ergebnis
 // landet als Bitmaske in einem TouchInput (siehe input.js).
 // =====================================================================
 
-import { UP, DOWN, LEFT, RIGHT, LIGHT, HEAVY, SPECIAL } from './buttons.js';
+import { UP, DOWN, LEFT, RIGHT, LIGHT, HEAVY, SPECIAL, DASH } from './buttons.js';
 
-const BUTTON_BITS = { light: LIGHT, heavy: HEAVY, special: SPECIAL };
+const BUTTON_BITS = { light: LIGHT, heavy: HEAVY, special: SPECIAL, dash: DASH };
 
 // Richtungen nach Winkel (0° = rechts, 90° = oben). Waagerecht ist großzügig,
 // damit man nicht aus Versehen springt.
@@ -90,6 +90,7 @@ export class TouchControls {
   releaseAll() {
     this.dirBits = 0;
     this.buttonBits = 0;
+    this.input.latch = 0;
     this.dpadPointer = null;
     this.knob.style.transform = '';
     for (const b of this.root.querySelectorAll('.tbtn')) b.classList.remove('down');
@@ -152,6 +153,7 @@ export class TouchControls {
       btn.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         pointers.add(e.pointerId);
+        this.input.latch |= bit; // auch ganz kurze Tipper zählen (siehe clearInputLatch)
         try {
           btn.setPointerCapture(e.pointerId);
         } catch {

@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createMatch, step, checksum, resetRound } from '../src/sim.js';
 import { BotInput } from '../src/input.js';
-import { UP, DOWN, LEFT, RIGHT, LIGHT, HEAVY, SPECIAL } from '../src/buttons.js';
+import { UP, DOWN, LEFT, RIGHT, LIGHT, HEAVY, SPECIAL, DASH } from '../src/buttons.js';
 
 // Eigener, reproduzierbarer Zufall (nur für die Tests!)
 function rng(seed) {
@@ -43,7 +43,8 @@ function randomInputs(seed, count) {
       if (r() < 0.08) mask |= LIGHT;
       if (r() < 0.05) mask |= HEAVY;
       if (r() < 0.03) mask |= SPECIAL;
-      if (r() < 0.01) mask = Math.floor(r() * 128); // völlig wilde Eingaben
+      if (r() < 0.03) mask |= DASH;
+      if (r() < 0.01) mask = Math.floor(r() * 256); // völlig wilde Eingaben
       pair[p] = mask;
     }
     out.push(pair);

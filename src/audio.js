@@ -169,6 +169,11 @@ export class Sound {
       case 'land':
         this.hiss({ dur: 0.07, vol: 0.18, filter: 'lowpass', f0: 600, f1: 200, pan });
         break;
+      case 'dashStep':
+        // Dash: kurzer Luftzug
+        this.hiss({ dur: 0.13, vol: 0.16, filter: 'bandpass', f0: 700, f1: 2200, q: 1.4, pan });
+        this.hiss({ dur: 0.05, vol: 0.12, filter: 'lowpass', f0: 500, pan });
+        break;
       case 'stance':
         // Konter-Haltung: leises, hohes Sirren
         this.tone({ type: 'triangle', f0: 900, f1: 1500, dur: 0.18, vol: 0.06, pan });
@@ -269,6 +274,9 @@ export class Sound {
         break;
       case 'counter':
         this.play('counter', pan);
+        break;
+      case 'dash':
+        this.play('dashStep', pan);
         break;
       case 'block':
         this.play('block', pan);

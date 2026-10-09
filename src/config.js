@@ -22,7 +22,7 @@
 // Spielwerte. Das Spiel prüft das beim Verbinden.
 // =====================================================================
 
-export const GAME_VERSION = '2.1.0';
+export const GAME_VERSION = '2.2.0';
 
 // ---------------------------------------------------------------------
 // Spieltempo
@@ -61,6 +61,14 @@ export const FIGHTER = {
   AIR_MAX_SPEED: 4.8,    // höchstes Seitwärts-Tempo in der Luft (px/F)
   LANDING_RECOVERY: 3,   // Frames Erholung nach der Landung
   FRICTION: 0.5,         // Bremsen beim Zurückrutschen nach Treffern (px/F pro Frame)
+
+  // Dash: kurzer, schneller Schritt (Taste C). Richtung = gehaltene Richtung, sonst nach vorn.
+  // Währenddessen kann man weder angreifen noch blocken. Charaktere können
+  // dashForward / dashBack (px/F) überschreiben.
+  DASH_SPEED: 9,         // Tempo beim Vorwärts-Dash (px/F) → 9 × 12 ≈ 108 Pixel
+  BACKDASH_SPEED: 7.5,   // Tempo beim Rückwärts-Dash (px/F) → ≈ 90 Pixel
+  DASH_FRAMES: 12,       // so lange gleitet man (Frames)
+  DASH_RECOVERY: 6,      // danach kurz nicht handlungsfähig (Frames)
 
   // Schiebeboxen: Kämpfer können nicht ineinander laufen.
   // Sie sind niedriger als der Körper, damit man über den Gegner springen kann.
@@ -484,11 +492,13 @@ export const KEYS = {
     up: ['KeyW'], down: ['KeyS'], left: ['KeyA'], right: ['KeyD'],
     // Maus: Linksklick = schnell, Rechtsklick = stark; F/G/H gehen zusätzlich
     light: ['MouseLeft', 'KeyF'], heavy: ['MouseRight', 'KeyG'], special: ['Space', 'KeyH'],
+    dash: ['KeyC'],
   },
   P2: {
     up: ['ArrowUp'], down: ['ArrowDown'], left: ['ArrowLeft'], right: ['ArrowRight'],
     // Nummernblock 1/2/3 – oder , . - für Laptops ohne Nummernblock
     light: ['Numpad1', 'Comma'], heavy: ['Numpad2', 'Period'], special: ['Numpad3', 'Slash'],
+    dash: ['Numpad0', 'KeyM'],
   },
   PAUSE: ['Escape', 'KeyP'],
   HITBOXES: ['F1'],
@@ -497,12 +507,13 @@ export const KEYS = {
 
 // ---------------------------------------------------------------------
 // Gamepad (Nummern der Knöpfe im "Standard-Layout")
-// 0 = A/✕   1 = B/○   2 = X/□   3 = Y/△   5 = RB/R1   7 = RT/R2   9 = Start
+// 0 = A/✕   1 = B/○   2 = X/□   3 = Y/△   4 = LB/L1   5 = RB/R1   6 = LT/L2   7 = RT/R2   9 = Start
 // ---------------------------------------------------------------------
 export const GAMEPAD = {
   LIGHT: [2, 0],
   HEAVY: [3, 7],
   SPECIAL: [1, 5],
+  DASH: [4, 6],
   PAUSE: [9],
   STICK_DEADZONE: 0.5,
 };

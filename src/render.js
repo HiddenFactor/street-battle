@@ -412,6 +412,18 @@ export class Renderer {
       case 'land':
         this.dust(sx, FLOOR_Y, 8, amount);
         break;
+      case 'dash': {
+        // Staubwolke hinter den Füßen und kurze Tempo-Striche
+        this.dust(sx - e.dir * 20, FLOOR_Y, 7, amount);
+        for (let n = 0; n < Math.round(4 * amount); n++) {
+          this.addParticle({
+            type: 'spark', x: sx - e.dir * rand(10, 40), y: FLOOR_Y - rand(30, 130),
+            vx: -e.dir * rand(260, 420), vy: 0, life: rand(0.12, 0.22), size: rand(18, 30),
+            color: 'rgba(255,255,255,0.8)', drag: 3, grav: 0,
+          });
+        }
+        break;
+      }
       case 'down':
         this.dust(sx, FLOOR_Y, 18, amount);
         this.shake = Math.max(this.shake, 5 * shakeMul);
@@ -724,6 +736,15 @@ export class Renderer {
         this.stroke2(a.p, b.p, 14 * size * (1 - age), `rgba(255,255,255,${0.35 * (1 - age)})`);
       }
       ctx.globalCompositeOperation = 'source-over';
+    }
+
+    // Dash: kleine Staubwölkchen beim Gleiten
+    if (f.state === 'dash' && f.stateFrame < cd.dashFrames && Math.random() < dt * 30 * LOOK.PARTICLES) {
+      this.addParticle({
+        type: 'smoke', x: ox - f.dashDir * 14 + rand(-6, 6), y: FLOOR_Y - rand(0, 6),
+        vx: -f.dashDir * rand(30, 90), vy: rand(-40, -10), life: rand(0.25, 0.45), size: rand(5, 9),
+        color: 'rgba(190,170,210,1)', drag: 3, grav: 0,
+      });
     }
 
     // Schal (Wiesel) und Pferdeschwanz (Luchs) wehen hinter dem Körper

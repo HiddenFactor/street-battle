@@ -10,7 +10,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createMatch, step, SUB, charData, DEFAULT_CHAR, TIMING } from '../src/sim.js';
 import { ROUND, FIGHTER, TRAINING, STAGE } from '../src/config.js';
-import { UP, DOWN, LEFT, RIGHT, LIGHT, HEAVY, SPECIAL } from '../src/buttons.js';
+import { UP, DOWN, LEFT, RIGHT, LIGHT, HEAVY, SPECIAL, DASH } from '../src/buttons.js';
 
 // Match starten und das "RUNDE 1"-Intro überspringen
 function fightState(options) {
@@ -257,4 +257,55 @@ test('Luftsteuerung: in der Luft rechts halten lenkt nach rechts, nie schneller 
   } else {
     assert.equal(landingX(steered.events), 300);
   }
+});
+
+// ---------------------------------------------------------------------
+// Dash
+// ---------------------------------------------------------------------
+test('Dash: schneller Schritt nach vorn, danach wieder handlungsfähig', () => {
+  const c = charData(DEFAULT_CHAR);
+  const s0 = place(fightState(), 300, 800);
+  let idleAt = -1;
+  const { s, events } = run(s0, 40, (t, st) => {
+    if (idleAt < 0 && t > 0 && st.fighters[0].state === 'idle') idleAt = t;
+    return [t === 0 ? DASH : 0, 0];
+  });
+  assert.equal(events.filter((e) => e.type === 'dash').length, 1);
+  const moved = (s.fighters[0].x - 300 * SUB) / SUB;
+  const expected = (c.dashF * c.dashFrames) / SUB;
+  assert.ok(Math.abs(moved - expected) <= 3, `Strecke ${moved}, erwartet ~${expected}`);
+  assert.ok(Math.abs(expected - FIGHTER.DASH_SPEED * FIGHTER.DASH_FRAMES) <= 3, 'Strecke hängt vom Spieltempo ab');
+  assert.ok(Math.abs(idleAt - (c.dashFrames + c.dashRecovery)) <= 1, `wieder handlungsfähig nach ${idleAt} Frames`);
+});
+
+test('Dash: mit "zurück" gehalten geht es nach hinten (kürzer)', () => {
+  const s0 = place(fightState(), 500, 800);
+  const { s, events } = run(s0, 40, (t) => [t === 0 ? DASH | LEFT : 0, 0]);
+  const dash = events.find((e) => e.type === 'dash');
+  assert.ok(dash && dash.back, 'kein Rückwärts-Dash');
+  const moved = (500 * SUB - s.fighters[0].x) / SUB;
+  assert.ok(moved > 50, `zu kurz: ${moved}`);
+  assert.ok(moved < FIGHTER.DASH_SPEED * FIGHTER.DASH_FRAMES, 'Rückwärts-Dash sollte kürzer sein');
+});
+
+test('Dash: gedrückt halten löst nur einen Dash aus', () => {
+  const { events } = run(place(fightState(), 200, 800), 90, () => [DASH, 0]);
+  assert.equal(events.filter((e) => e.type === 'dash').length, 1);
+});
+
+test('Dash: Angriff während des Dashs kommt direkt danach (Puffer)', () => {
+  const c = charData(DEFAULT_CHAR);
+  const end = c.dashFrames + c.dashRecovery;
+  const { events } = run(place(fightState(), 200, 800), 60, (t) => [t === 0 ? DASH : t === end - 2 ? LIGHT : 0, 0]);
+  const swing = events.find((e) => e.type === 'swing');
+  assert.ok(swing, 'Angriff ging verloren');
+  assert.ok(swing.tick >= end - 1 && swing.tick <= end + 1, `Angriff bei ${swing.tick}, Dash-Ende ${end}`);
+});
+
+test('Dash: im Dash kann man nicht blocken', () => {
+  // P2 dasht nach vorn in den Schlag von P1 hinein und hält dabei "zurück"
+  const s0 = place(fightState(), 400, 560);
+  const { events } = run(s0, 30, (t) => [t === 0 ? LIGHT : 0, t === 0 ? DASH : RIGHT]);
+  assert.ok(events.find((e) => e.type === 'hit' && e.p === 1), 'Treffer erwartet');
+  assert.ok(!events.find((e) => e.type === 'block'), 'im Dash geblockt');
 });

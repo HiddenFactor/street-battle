@@ -39,12 +39,15 @@ Im Training wählst du erst dich, dann den Dummy. Nach dem Match: „Rematch“ 
 | Schneller Angriff       | **Linksklick** (oder F) | Nummernblock 1 (oder `,`) | X / □  | **L**                 |
 | Starker Angriff (Kick)  | **Rechtsklick** (oder G) | Nummernblock 2 (oder `.`) | Y / △ | **S**                 |
 | Special (je Kämpfer)    | **Leertaste** (oder H) | Nummernblock 3 (oder `-`) | B / ○   | **★**                 |
+| Dash (kurzer Sprint)    | **C**     | Nummernblock 0 (oder `M`) | LB / L1              | **»**                 |
 | Pause                   | Esc oder P| Esc oder P                | Start                | ❚❚ oben in der Mitte  |
 
 - **Blocken:** vom Gegner weg halten. Geduckt blocken gegen tiefe Tritte, stehend gegen Sprung-Angriffe.
 - **Unten + Angriff** = tiefer Angriff (der starke tiefe Tritt wirft um). **In der Luft angreifen** = Sprung-Angriff.
 - **In der Luft lenken:** Während eines Sprungs mit links/rechts die Flugbahn ändern.
 - **Doppelsprung (nur Wiesel):** in der Luft nochmal „hoch“ drücken.
+- **Dash:** schneller Schritt nach vorn, mit „zurück“ gehalten nach hinten. Währenddessen kann man weder
+  angreifen noch blocken – gut zum Heranstürmen oder Ausweichen, aber riskant.
 - Die Tastenbelegung steht klein unten im Bild und im Hauptmenü. Unten links im Menü steht die Version (z. B. v2.1.0).
 - Der schnelle Schlag lässt sich bei Kontakt direkt ins Special abbrechen (Combo!).
 - **Training:** `T` wechselt den Dummy (stehen, ducken, blocken, springen), `F1` zeigt die Hitboxen.
@@ -209,6 +212,8 @@ Alle Werte gelten fürs **Grundtempo** – `GAME_SPEED` rechnet sie aufs eingest
 | `FIGHTER.GRAVITY`         | 0.75                          | Schwerkraft (höher = kürzere Sprünge) |
 | `FIGHTER.AIR_CONTROL`     | 0.7                           | Lenken in der Luft (0 = aus, 0.3 = leicht, 0.7 = stark) |
 | `FIGHTER.AIR_MAX_SPEED`   | 4.8                           | höchstes Seitwärts-Tempo in der Luft |
+| `FIGHTER.DASH_SPEED` / `BACKDASH_SPEED` | 9 / 7.5         | Tempo des Dashs vor/zurück (Pixel pro Frame) |
+| `FIGHTER.DASH_FRAMES` / `DASH_RECOVERY` | 12 / 6          | wie lange man gleitet / danach kurz steht |
 | `MOVES.lightStand` usw.   | `damage`                      | Schaden des Angriffs |
 |                           | `startup`                     | Frames bis der Angriff trifft (kleiner = schneller) |
 |                           | `active`                      | wie lange der Angriff treffen kann |

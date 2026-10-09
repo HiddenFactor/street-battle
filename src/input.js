@@ -7,12 +7,12 @@
 // =====================================================================
 
 import { KEYS, GAMEPAD } from './config.js';
-import { UP, DOWN, LEFT, RIGHT, LIGHT, HEAVY, SPECIAL } from './buttons.js';
+import { UP, DOWN, LEFT, RIGHT, LIGHT, HEAVY, SPECIAL, DASH } from './buttons.js';
 import { charData } from './sim.js';
 
 export * from './buttons.js';
 
-const BIT_OF = { up: UP, down: DOWN, left: LEFT, right: RIGHT, light: LIGHT, heavy: HEAVY, special: SPECIAL };
+const BIT_OF = { up: UP, down: DOWN, left: LEFT, right: RIGHT, light: LIGHT, heavy: HEAVY, special: SPECIAL, dash: DASH };
 
 // ---------------------------------------------------------------------
 // Tastatur
@@ -53,9 +53,13 @@ export function attachKeyboard() {
   attachMouse();
 }
 
+// Weitere Quellen mit gemerkten kurzen Tippern (Touch-Knöpfe)
+const latchSources = new Set();
+
 /** Nach jedem Spiel-Frame aufrufen: gemerkte kurze Tipper vergessen. */
 export function clearInputLatch() {
   latched.clear();
+  for (const src of latchSources) src.latch = 0;
 }
 
 // ---------------------------------------------------------------------
@@ -145,6 +149,7 @@ export class GamepadInput {
     if (anyPressed(pad, GAMEPAD.LIGHT)) mask |= LIGHT;
     if (anyPressed(pad, GAMEPAD.HEAVY)) mask |= HEAVY;
     if (anyPressed(pad, GAMEPAD.SPECIAL)) mask |= SPECIAL;
+    if (anyPressed(pad, GAMEPAD.DASH)) mask |= DASH;
     return mask;
   }
   /** Start-Knopf gedrückt? (für Pause) */
@@ -160,9 +165,11 @@ export class GamepadInput {
 export class TouchInput {
   constructor() {
     this.mask = 0;
+    this.latch = 0; // kurz angetippte Knöpfe zählen bis zum nächsten Spiel-Frame
+    latchSources.add(this);
   }
   read() {
-    return this.mask;
+    return this.mask | this.latch;
   }
 }
 

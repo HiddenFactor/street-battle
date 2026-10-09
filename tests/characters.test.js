@@ -146,7 +146,7 @@ test('alle Paarungen: deterministisch und nur Ganzzahlen', () => {
   const isInt = (v) => typeof v !== 'number' || Number.isInteger(v);
   for (const a of CHARACTER_ORDER) {
     for (const b of CHARACTER_ORDER) {
-      const inputs = Array.from({ length: 2500 }, () => [Math.floor(r() * 128), Math.floor(r() * 128)]);
+      const inputs = Array.from({ length: 2500 }, () => [Math.floor(r() * 256), Math.floor(r() * 256)]);
       const play = () => {
         let s = createMatch({ chars: [a, b] });
         for (const [i1, i2] of inputs) {

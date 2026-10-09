@@ -64,13 +64,16 @@ Bezeichner auf Englisch, Kommentare knapp und erklärend.
 - Interne Auflösung 960×540, Letterboxing über main.js `resize()`; Boden bei y = 470.
 
 ### Eingaben (src/buttons.js, src/input.js)
-- Bitmaske pro Tick: UP=1, DOWN=2, LEFT=4, RIGHT=8, LIGHT=16, HEAVY=32, SPECIAL=64.
+- Bitmaske pro Tick: UP=1, DOWN=2, LEFT=4, RIGHT=8, LIGHT=16, HEAVY=32, SPECIAL=64, DASH=128.
+  DASH läuft über den Eingabepuffer (Priorität SPECIAL > HEAVY > LIGHT > DASH); Zustand `'dash'` mit `dashDir`
+  (gehaltene Richtung, sonst vorn), erst `dashFrames` gleiten, dann `dashRecovery`, kein Block/Angriff.
   Richtungen sind absolut; die sim rechnet vor/zurück über `facing` (links+rechts = nichts).
 - Quellen mit `read() → Maske`: `KeyboardInput`, `GamepadInput`, `TouchInput` (Maske setzt
   touch.js), `NetworkInput` (Frame → Maske), `DummyInput`, `BotInput`; `combine()` verodert.
 - Maustasten sind Pseudo-Codes `MouseLeft`/`MouseRight` im selben Tasten-Set (in `KEYS` nutzbar);
   Klicks auf Knöpfe/offene Menüs und Touch-Kompatibilitäts-Mausereignisse zählen nicht.
-- Kurze Tipper werden gemerkt („latch“) und nach jedem `session.tick()` mit `clearInputLatch()` gelöscht.
+- Kurze Tipper werden gemerkt („latch“) und nach jedem `session.tick()` mit `clearInputLatch()` gelöscht
+  (Tastatur über das Tasten-Set, Touch-Knöpfe über `TouchInput.latch`).
 - Anzeige der Tastenbelegung: `src/controls.js` (aus `KEYS`/`GAMEPAD`), Schalter `LOOK.SHOW_CONTROLS`.
 
 ### Charakterwahl (src/select.js)

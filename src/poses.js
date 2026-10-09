@@ -44,6 +44,9 @@ export const POSES = {
   fly: P({ hip: [0, 70], torso: -10, head: -20, armF: [150, 20], armB: [120, 30], legF: [40, -30], legB: [20, -40], rot: -55 }),
   lying: P({ hip: [0, 14], torso: 0, head: 10, armF: [10, 0], armB: [20, 10], legF: [5, 0], legB: [-5, 0], rot: -90 }),
   win: P({ hip: [0, 82], torso: -6, head: -10, armF: [175, 10], armB: [-20, 100], legF: [16, -10], legB: [-16, -10] }),
+  // Dash: vorgebeugt nach vorn sprinten bzw. zurückgelehnt nach hinten springen
+  dashF: P({ hip: [4, 70], torso: 30, head: 12, armF: [25, 100], armB: [-45, 70], legF: [62, -75], legB: [-40, -40] }),
+  dashB: P({ hip: [-4, 72], torso: -14, head: -10, armF: [60, 110], armB: [45, 100], legF: [45, -50], legB: [-8, -55] }),
 };
 
 // Ausholen (windup) und Treffen (strike) für jeden Angriff
@@ -197,6 +200,13 @@ function basePose(f, time) {
     case 'jumpsquat':
     case 'land':
       return { pose: POSES.squat, snap: false };
+    case 'dash': {
+      const cd = charData(f);
+      const pose = f.dashDir === f.facing ? POSES.dashF : POSES.dashB;
+      if (f.stateFrame < cd.dashFrames) return { pose, snap: f.stateFrame === 0 };
+      // Erholung: zurück in die Grundhaltung
+      return { pose: blend(pose, POSES.stance, ease((f.stateFrame - cd.dashFrames + 1) / cd.dashRecovery)), snap: false };
+    }
     case 'air': {
       if (f.jumpDir !== 0) {
         // Salto beim Vor-/Rückwärtssprung

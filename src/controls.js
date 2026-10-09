@@ -36,7 +36,8 @@ export function menuHint() {
   const p1 = KEYS.P1;
   const p2 = KEYS.P2;
   return `Steuerung: ${moveKeys(p1)} · ${first(p1, 'light')} schnell · ${first(p1, 'heavy')} stark · ` +
-    `${first(p1, 'special')} Special   (Spieler 2: ${moveKeys(p2)} + ${first(p2, 'light')}/${first(p2, 'heavy')}/${first(p2, 'special')})`;
+    `${first(p1, 'special')} Special · ${first(p1, 'dash')} Dash   ` +
+    `(Spieler 2: ${moveKeys(p2)} + ${first(p2, 'light')}/${first(p2, 'heavy')}/${first(p2, 'special')}/${first(p2, 'dash')})`;
 }
 
 /**
@@ -48,17 +49,17 @@ export function controlsLines(kind, gamepadConnected) {
   const p1 = KEYS.P1;
   const p2 = KEYS.P2;
   const pad = gamepadConnected
-    ? ` · Pad: ${PAD_LABELS[GAMEPAD.LIGHT[0]]} schnell · ${PAD_LABELS[GAMEPAD.HEAVY[0]]} stark · ${PAD_LABELS[GAMEPAD.SPECIAL[0]]} Special`
+    ? ` · Pad: ${PAD_LABELS[GAMEPAD.LIGHT[0]]} schnell · ${PAD_LABELS[GAMEPAD.HEAVY[0]]} stark · ${PAD_LABELS[GAMEPAD.SPECIAL[0]]} Special · ${PAD_LABELS[GAMEPAD.DASH[0]]} Dash`
     : '';
   if (kind === 'local') {
     return {
-      left: `P1: ${moveKeys(p1)} · ${first(p1, 'light')} schnell · ${first(p1, 'heavy')} stark · ${first(p1, 'special')} Special`,
-      right: `P2: ${moveKeys(p2)} · ${first(p2, 'light')} schnell · ${first(p2, 'heavy')} stark · ${first(p2, 'special')} Special`,
+      left: `P1: ${moveKeys(p1)} · ${first(p1, 'light')} schnell · ${first(p1, 'heavy')} stark · ${first(p1, 'special')} Special · ${first(p1, 'dash')} Dash`,
+      right: `P2: ${moveKeys(p2)} · ${first(p2, 'light')} schnell · ${first(p2, 'heavy')} stark · ${first(p2, 'special')} Special · ${first(p2, 'dash')} Dash`,
       center: pad ? pad.slice(3) : '',
     };
   }
   const both = (action) => `${first(p1, action)}/${first(p2, action)}`;
-  let text = `${moveKeys(p1)} oder ${moveKeys(p2)} · ${both('light')} schnell · ${both('heavy')} stark · ${both('special')} Special`;
+  let text = `${moveKeys(p1)} oder ${moveKeys(p2)} · ${both('light')} schnell · ${both('heavy')} stark · ${both('special')} Special · ${both('dash')} Dash`;
   if (kind === 'training') text += ` · ${keyLabel(KEYS.DUMMY_MODE[0])} Dummy · ${keyLabel(KEYS.HITBOXES[0])} Hitboxen`;
   return { center: text + pad };
 }

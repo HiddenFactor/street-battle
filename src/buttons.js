@@ -14,7 +14,8 @@ export const RIGHT = 8;
 export const LIGHT = 16;
 export const HEAVY = 32;
 export const SPECIAL = 64;
+export const DASH = 128;
 
 export const DIRECTIONS = UP | DOWN | LEFT | RIGHT;
-export const BUTTONS = LIGHT | HEAVY | SPECIAL;
+export const BUTTONS = LIGHT | HEAVY | SPECIAL | DASH;
 export const ALL_INPUTS = DIRECTIONS | BUTTONS;
